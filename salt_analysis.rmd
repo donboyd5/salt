@@ -1,0 +1,279 @@
+---
+title: "State impact of SALT repeal"
+author: "Don Boyd and Matt Jensen"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_notebook: 
+    df_print: paged
+    fig_height: 6
+    fig_width: 8
+    toc: yes
+    number_sections: yes
+editor_options:
+  chunk_output_type: console
+---
+
+Introduction
+
+```{r setup, eval=TRUE, include=FALSE, echo=FALSE, message=FALSE, warning=FALSE}
+# note that eval=TRUE unless set to FALSE
+knitr::opts_chunk$set(echo = FALSE)
+options(width = 150)
+```
+
+# Possible sources of information on targets for 2021
+
+Note: 
+
+*   All puf numbers given below are for the PUF with original weights and growfactors, but WITHOUT puf_ratios adjustments.
+*   The reweighted numbers are the same, but have weights estimated by Boyd.
+*   [IRS returns per Tax-Calculator](https://github.com/PSLmodels/taxdata/blob/master/puf_stage1/IRS_return_projection.csv): 161,707,000 
+    +   puf: 151,156,078
+    +   reweighted: 160,227,908
+*   [SOI estimates](https://github.com/PSLmodels/taxdata/blob/master/puf_stage1/SOI_estimates.csv) are only for 2008-2017
+*   [CBO baseline](https://github.com/PSLmodels/taxdata/blob/master/puf_stage1/CBO_baseline.csv) has important variables from 2008-2031
+*   [Stage_II_targets.csv]() has important values for 2011-2031. Selected 2021 values given below
+    +   Wages and Salaries: $1 Million and Over: 425,117,251
+        +   Is this the sum of wages and salaries for people who have W&S > $1m, rather than for those who have AGI>$1m? I think so.
+        +   What is the source?
+        +   This must be in $ thousands.
+        +   If the $1m+ break is on wages I get:
+            +   $469.0192 billion for puf
+            +   $520.6094 reweighted
+        +   If the $1m+ break is on agi I get:
+            +   $588.9076 for puf
+            +   $629.6201	for reweighted
+            +   $489.053 as the IRS 2017 value (add 4 years of growth), which gives 4.75% compound growth for puf, or 6.5% for reweighted, which seems high.
+            +   [growfactor](https://github.com/PSLmodels/taxdata/blob/master/puf_stage1/growfactors.csv) compound wage growth over the 4 years was only 2.9% so this is a surprise that needs to be explored
+    +   Net Capital Gains in AGI: 1,176,100,576
+
+
+Some links to estimates:
+*   [TPC 2020 repeal $76b](https://www.taxpolicycenter.org/taxvox/tpc-analyzes-five-ways-replace-salt-deduction-cap)
+*   [also this](https://www.taxpolicycenter.org/publications/alternatives-tcja-limit-state-and-local-tax-deduction/full)
+
+
+
+```{r libraries}
+library(tidyverse)
+options(tibble.print_max = 80, tibble.print_min = 80) # if more than 60 rows, print 60 - enough for states
+library(arrow)
+
+library(btools)
+
+```
+
+
+```{r locations}
+SCRATCHDIR <- '/media/don/scratch/'
+DATADIR <- '/media/don/pufanalysis_output/data/'
+WEIGHTDIR <- '/media/don/pufanalysis_output/weights/'
+
+
+# basedf.to_parquet(SCRATCHDIR + 'base2021.parquet', engine='pyarrow')
+# weights2017 = pd.read_csv(WDIR + 'allweights2017_geo_restricted.csv') # 227766, filers only
+# 'puf2017_default.parquet'
+
+
+```
+
+
+```{r constants}
+geos <- c(state.abb, "other")
+
+
+
+```
+
+
+
+```{r get_data}
+
+stweights2017 <- read_csv(paste0(WEIGHTDIR, 'allweights2017_geo_restricted.csv')) %>%
+  mutate(RECID=pid + 1)
+glimpse(stweights2017)
+
+stshares <- stweights2017 %>%
+  mutate(across(all_of(geos), ~ .x / geoweight_sum))
+glimpse(stshares)
+# do all shares add to 1?
+check <- stshares %>%
+  pivot_longer(cols=all_of(geos)) %>%
+  group_by(RECID) %>%
+  summarise(sum=sum(value), .groups="drop")
+check %>% filter(abs(sum - 1) > 1e-6)  
+
+
+usweights <- read_csv(paste0(SCRATCHDIR, 'weights2021.csv'))
+glimpse(usweights)
+usweights %>%
+  group_by(filer2017) %>%
+  summarise(across(-c(RECID), ~ sum(.x)))
+
+stweights2021 <- usweights %>%
+  left_join(stshares %>% select(RECID, all_of(geos)), by="RECID") %>%
+  mutate(across(all_of(geos), ~ .x * REWT2021))
+glimpse(stweights2021)
+
+check <- stweights2021 %>%
+  filter(filer2017) %>%
+  select(RECID, REWT2021, all_of(geos)) %>%
+  pivot_longer(-c(RECID, REWT2021)) %>%
+  group_by(RECID, REWT2021) %>%
+  summarise(wtsum=sum(value), .groups="drop") %>%
+  mutate(diff=wtsum - REWT2021,
+         pdiff=diff / REWT2021 * 100)
+quantile(check$pdiff)
+
+
+# stubs <- read_parquet(paste0(DATADIR, "puf2017.parquet"))
+# glimpse(stubs)
+# ns(stubs)
+
+basedf <- read_parquet(paste0(SCRATCHDIR, "base2021.parquet"),
+                       col_select = all_of(c("RECID", "c00100", "e00200", "c18300", "s006", "iitax")))
+
+reformdf <- read_parquet(paste0(SCRATCHDIR, "reform2021.parquet"),
+                       col_select = all_of(c("RECID", "c00100", "e00200", "c18300", "s006", "iitax")))
+
+
+```
+
+
+```{r }
+# quick checsk
+bsum <- sum(basedf$iitax * basedf$s006)
+rsum <- sum(reformdf$iitax * reformdf$s006)
+(rsum - bsum) / 1e9  #  -80.14411, same as python
+
+# now bring in reweights
+base2 <- basedf %>%
+  left_join(usweights %>% select(RECID, filer2017, WT2021, REWT2021),
+            by="RECID") %>%
+  mutate(type="base")
+
+
+ref2 <- reformdf %>%
+  left_join(usweights %>% select(RECID, filer2017, WT2021, REWT2021),
+            by="RECID") %>%
+  mutate(type="reform")
+
+sum(base2$iitax * base2$WT2021)
+sum(base2$iitax * base2$REWT2021)
+sum(ref2$iitax * ref2$WT2021)
+sum(ref2$iitax * ref2$REWT2021)
+
+# salt
+sum(base2$c18300 * base2$WT2021)
+sum(base2$c18300 * base2$REWT2021)
+
+(sum(ref2$iitax * ref2$WT2021) - sum(base2$iitax * base2$WT2021)) / 1e9  # -80.14411
+(sum(ref2$iitax * ref2$REWT2021) - sum(base2$iitax * base2$REWT2021)) / 1e9  # -91.22943
+
+agi_stubs <- tribble(~agicut, ~agilabel,
+                     -Inf, "Negative",
+                     1, "Under $1",
+                     25e3, "$1 to < $25k",
+                     50e3, "$25k < 50k",
+                     75e3, "$50k < 75k",
+                     100e3, "$75k < $100k",
+                     200e3, "$100k < $200k",
+                     500e3, "$200k < $500k",
+                     1e6, "$500k < $1m",
+                     Inf, "Above $1m")
+
+comp <- bind_rows(base2, ref2) %>%
+  mutate(stub=cut(c00100, agi_stubs$agicut, labels=agi_stubs$agilabel[-1], include.lowest = TRUE, right=FALSE),
+         stubnum=as.integer(stub))
+
+comp %>%
+  filter(type=="reform", filer2017) %>%
+  group_by(filer2017, stubnum, stub, type) %>%
+  summarise(salt_td=sum(c18300 * WT2021) / 1e9, salt_rw=sum(c18300 * REWT2021) / 1e9, .groups="drop")
+
+comp %>%
+  group_by(stubnum, stub, type) %>%
+  summarise(salt_td=sum(c18300 * WT2021) / 1e9, salt_rw=sum(c18300 * REWT2021) / 1e9, .groups="drop")
+
+comp %>%
+  group_by(type) %>%
+  summarise(salt_td=sum(c18300 * WT2021) / 1e9, salt_rw=sum(c18300 * REWT2021) / 1e9, .groups="drop") %>%
+  mutate(diff=salt_rw - salt_td)
+
+
+comp %>%
+  group_by(type, filer2017) %>%
+  summarise(iitax_td=sum(iitax * WT2021) / 1e9, iitax_rw=sum(iitax * REWT2021) / 1e9, .groups="drop")
+
+comp %>%
+  group_by(type, filer2017) %>%
+  summarise(iitax_td=sum(iitax * WT2021) / 1e9, iitax_rw=sum(iitax * REWT2021) / 1e9, .groups="drop") %>%
+  pivot_longer(-c(type, filer2017)) %>%
+  pivot_wider(names_from = type) %>%
+  mutate(change=reform - base)
+
+comp %>%
+  mutate(ws1mplus=e00200 >= 1e6) %>%
+  group_by(type, ws1mplus) %>%
+  summarise(ws_td=sum(e00200 * WT2021) / 1e9, iitax_rw=sum(e00200 * REWT2021) / 1e9, .groups="drop")
+
+comp %>%
+  mutate(agi1mplus=c00100 >= 1e6) %>%
+  group_by(type, agi1mplus) %>%
+  summarise(ws_td=sum(e00200 * WT2021) / 1e9, iitax_rw=sum(e00200 * REWT2021) / 1e9, .groups="drop")
+
+
+```
+
+# Preliminary analysis
+
+```{r}
+# create a file that has state weights with original puf weights and with my puf weights
+
+glimpse(comp)
+
+
+strwt <- comp %>%
+  left_join(stweights2021 %>% select(RECID, all_of(c(state.abb, "other"))), by="RECID") %>%
+  mutate(across(c(REWT2021, all_of(geos)), ~ .x * iitax))
+
+stpuf <- comp %>%
+  left_join(stweights2021 %>% select(RECID, all_of(c(state.abb, "other"))), by="RECID") %>%
+  mutate(across(c(WT2021, all_of(geos)), ~ .x * iitax))
+
+
+taxsums <- diffs %>%
+  group_by(type, stubnum, stub) %>%
+  summarise(across(c(REWT2021, all_of(c(state.abb, "other"))),
+                   ~ sum(.x, na.rm=TRUE)), .groups="drop")
+
+taxsums %>%
+  pivot_longer(-c(type, stubnum, stub)) %>%
+  pivot_wider(names_from = type) %>%
+  mutate(diff=reform - base) %>%
+  filter(name=="NY")
+
+analysis <- 
+  taxsums %>%
+  pivot_longer(-c(type, stubnum, stub)) %>%
+  pivot_wider(names_from = type) %>%
+  mutate(diff=reform - base,
+         pdiff=diff / base * 100)
+
+analysis %>%
+  filter(name=="NY")
+
+count(analysis, name)
+
+analysis %>%
+  mutate(grp=ifelse(name=="REWT2021", "US", "states")) %>%
+  group_by(grp) %>%
+  summarise(across(c(base, reform, diff), ~ sum(.x, na.rm=TRUE)))
+
+
+
+```
+
+
+
+
