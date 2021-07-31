@@ -126,6 +126,12 @@ library(gt)
 
 ```
 
+```{r}
+# link to github
+usethis::use_github()
+
+```
+
 
 ```{r locations}
 SCRATCHDIR <- '/media/don/scratch/'
