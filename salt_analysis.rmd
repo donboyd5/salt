@@ -23,10 +23,30 @@ Status and key issues:
 +   Initial focus has been on looking for anomalies and pumping out a few basic numbers.
 +   The key data-quality and calculation issues appear to be:
     +   National:
-        +   What should the amount and distribution across agi ranges of the uncapped taxes-paid deduction look like. It seems pretty clear that the default puf must have too little of the deductionl and way too little of it among millionaires. But why does the default come so close to TPC? 
-          +   I hope Frank S. has some useful comments on that. Maybe they have too little SALT deduction, also. I suspect that.
-          +   One way to investigate a little bit further would be to see how the puf national impact changes when moving from 2020 to 2021 (our year). If the puf number goes up a lot from 2020 to 2021, then perhaps the TPC number would go up a lot too, bringing it closer to the $90 billion I get with the reweighted puf.
+        +   SALT data
+            +   What should the amount and distribution across agi ranges of the uncapped taxes-paid deduction look like. It seems pretty clear that the default puf must have too little of the deduction and way too little of it among millionaires. But why does the default come so close to TPC? 
+            +   I hope Frank S. has some useful comments on that. Maybe they have too little SALT deduction, also. I suspect that.
+            +   One way to investigate a little bit further is to see how the puf national impact changes when moving from 2020 to 2021 (our year). If the puf number goes up a lot from 2020 to 2021, then perhaps the TPC number would go up a lot too, bringing it closer to the $90 billion I get with the reweighted puf. I calculated salt-cap national repeal costs in 2020 and 2021 (in python, not in this R program) using all defaults for both years and got the following:
+          
+                  Cost 2020($B) = -76.988183
+
+                  Cost 2021($B) = -80.178242  (same as Matt's number)
+          
+                  $b change cost = -3.19
+          
+                  % change cost = 4.14
+
+                Unfortunately, this suggests that TPC's estimate won't grow a lot from 2020 to 2021 -- maybe only to $80 billion -- and will remain well below the $90 billion estimate with my reweights. So I think either (1) TPC has too little SALT-qualifying deduction, (2) I have too much with the reweights, or (3) perhaps (far less likely) there is something not right about how Tax-Calculator is calculating it. It is hard for me to see how I can have significantly too much salt deduction given that I hit 2017 on the head, and the growth to 2021 seems plausible.
+              
+              +   Is it possible that c18300 is not the right variable to target? According to the 2011 SOI puf documentation, the important variables are e18400 (income or general sales tax), e18500 (real estate taxes), and e18600 (other taxes). It does not have e18300, instead c18300 is calculated and put on puf.csv by TaxData. Per [Tax-Calculator](http://taxcalc.pslmodels.org/guide/output_vars.html#c18300), c18300 is "Sch A: State and local taxes plus real estate taxes deducted (component of pre-limitation c21060 total)".  It certainly sounds right.
+
+              +   I calculated 2011 law in 2011 using puf.csv and got $473.675 b as the weighted sum for c18300
+              +   According to the relevant [IRS table](https://www.irs.gov/pub/irs-soi/11in21id.xls) the total taxes paid deduction on taxable returns was $434.8 billion (this is the concept I target), plus another $30.3 billion on nontaxable returns (both in column BQ). That is close enough to the calculated PUF value to make me think that c18300 really is the right variable.
+            +   So if c18300 is the right variable, and if the reweighted values in 2017 are accurate, and if the 2017 to 2021 growfactors are reasonable, it is hard to see how the data file for 2021 can be far off. And I have confidence in Tax-Calculator. That leads me to think that $90 billion is plausible and that TPC may be too low.
+
         +   Tax-Calculator produces tax increases for some records when the SALT cap is repealed. It's not a lot of records or a lot of money but it seems hard to understand. Would like to understand.   
+        
+           
     +   State: Why do KY and MS have such large percentage tax cuts from SALT-cap repeal? 
         +   I looked at the QC reports for these states and it looks like I came quite close to the important Historical Table 2 targets. 
         +   Could the targets themselves be bad? I need to investige more. If that turns out to be true, I may want to rerun the state weighting.
@@ -128,18 +148,20 @@ library(gt)
 
 ```{r}
 # link to github
-# my personal access token
-# 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
+# see DONOTCOMMIT.txt for my personal access token
+
+# • To create a personal access token, call `create_github_token()`
+# • To store a token for current and future use, call `gitcreds::gitcreds_set()`
+# ℹ Read more in the 'Managing Git(Hub) Credentials' article:
+#   https://usethis.r-lib.org/articles/articles/git-credentials.html
+
 # usethis::gh_token_help()
 # gitcreds::gitcreds_set()
 
 # then, finally:
 # usethis::use_github()
 
-# • To create a personal access token, call `create_github_token()`
-# • To store a token for current and future use, call `gitcreds::gitcreds_set()`
-# ℹ Read more in the 'Managing Git(Hub) Credentials' article:
-#   https://usethis.r-lib.org/articles/articles/git-credentials.html
+
 
 ```
 
@@ -285,7 +307,7 @@ increases %>%
 
 
 
-# Preliminary analysis
+# National analysis
 
 ```{r include=FALSE}
 # create a file that has state weights with original puf weights and with my puf weights
@@ -464,6 +486,8 @@ vartab(tabdata, "Taxes-paid deduction: SALT cap repeal vs. 2021 current law, 202
 
 ```
 
+
+# State analysis (preliminary)
 
 ## States ranked by $ billions change in iitax, base to reform
 
