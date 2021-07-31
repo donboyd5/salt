@@ -1017,6 +1017,10 @@ tab_isolation <- function(data){
       scale_by = 1e-6,
       suffixing = FALSE
     ) %>%
+    fmt_percent(
+      columns = "pchange",
+      decimals = 1
+    )
     tab_style(
       style = list(
         cell_fill(color = "#f7f7f7")

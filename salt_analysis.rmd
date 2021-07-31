@@ -1,5 +1,5 @@
 ---
-title: "State impact of SALT repeal"
+title: "State impact of SALT-cap repeal"
 author: "Don Boyd and Matt Jensen"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output:
@@ -13,36 +13,90 @@ editor_options:
   chunk_output_type: inline
 ---
 
-Introduction
+
+# Overall comments
+
+Status and key issues:
+
++   Things are set up in python to rerun baseline and reform if needed. This would only be necessary if puf.csv changes (e.g., if duplicate records are addressed), if Tax-Calculator changes, or the reform file changes. All seem unlikely.
++   Changes to national or state weights don't require rerunning baseline or reform in Tax-Calculator.
++   Initial focus has been on looking for anomalies and pumping out a few basic numbers.
++   The key data-quality and calculation issues appear to be:
+    +   National:
+        +   What should the amount and distribution across agi ranges of the uncapped taxes-paid deduction look like. It seems pretty clear that the default puf must have too little of the deductionl and way too little of it among millionaires. But why does the default come so close to TPC? 
+          +   I hope Frank S. has some useful comments on that. Maybe they have too little SALT deduction, also. I suspect that.
+          +   One way to investigate a little bit further would be to see how the puf national impact changes when moving from 2020 to 2021 (our year). If the puf number goes up a lot from 2020 to 2021, then perhaps the TPC number would go up a lot too, bringing it closer to the $90 billion I get with the reweighted puf.
+        +   Tax-Calculator produces tax increases for some records when the SALT cap is repealed. It's not a lot of records or a lot of money but it seems hard to understand. Would like to understand.   
+    +   State: Why do KY and MS have such large percentage tax cuts from SALT-cap repeal? 
+        +   I looked at the QC reports for these states and it looks like I came quite close to the important Historical Table 2 targets. 
+        +   Could the targets themselves be bad? I need to investige more. If that turns out to be true, I may want to rerun the state weighting.
+        +   However, I just stumbled on what I think is the reason. Toward the end there are summary reports for KY, MS, and, for comparison, NY.
+            +   NY has larger % tax cuts than KY and MS in the high income ranges as we'd expect.
+            +   But KY and MS have a lot of people who have negative baseline tax (presumably EITC and other refundable credits). As a result, for their totals, we count their tax reductions across all taxpayers as a percentage of their baseline tax across all taxpayers - with that baseline reduced by a lot of credits.
+            +   It may be that their liability for negative taxpayers is a far larger share of total net liability than it is in NY and a lot of other states, in part because the other states have more high-liability taxpayers, and so the overall average is skewed in some low-liability states.
+            +   If this proves to be the primary explanation, then there may be nothing wrong at all. It's just that we have a presentation problem and will have to figure out a good way to present this. Maybe one way to present will be to average per-return changes.
+            
+    
+Details below support the points above.    
+
+
+# Methodology and data notes
+
+## Constructing 2021 data for the nation
+
++   **Start with official 2021-07-20 puf.csv**
++   Per the PSL Demo Day discussion, create 2017 national file:
+    +   Extrapolate to 2017 using all defaults (growfactors.csv, puf_weights.csv, puf_ratios.csv)
+    +   Calculate 2017 agi, determine 2017 filer status
+    +   Reweight filers to approximate IRS national values for 2017 by agi range (including esp. c18300, taxes paid deduction)
+    +   Note that WITHOUT reweighting, puf.csv in 2017 with defaults:
+        +   has about $34b (5.5%) too little taxes paid deduction
+        +   $30b of that is for agi ten-millionaires (64% below what IRS shows)
+        +   another ~$10b is for millionaires in the $1m-10m range, with non-millionaires somewhat above IRS
+    +   As reweighted, 2017 file matches IRS values within small tolerances
++   **Move 2017 file to 2021**
+    +   Create records object from the reweighted file with start_year=2017, adjust_ratios=None (because I believe reweighting addresses interest income)
+    +   Advance to 2017, which means it uses default puf growfactors for per-return values, but not puf_ratios. (There is a slight oddity: I used puf_ratios to move from 2011 to 2017, but not 2017 to 2021. This results in minimal differences vs  no puf_ratios at all and if I were redoing it I probably would drop puf_ratios altogether.)
+        +   The default growfactors I looked at seem very plausible.
+        +   Taxes-paid components are grown by ATXPY. Its total growth from 2017 to 2021 is about 14.4% and its cagr is 3.48%. Looks reasonable.
+    +   Note that using Tax-Calculator to advance overwrites my 2017 weights with those in puf_weights.csv, but that's ok - I replace them later.
++   **Sanity checks to this point**
+    +   I verified by spot-checking individual records that SALT components (e18400, etc.) grow by 14.4%.
+    +   Using the method above (default growfactors and weights, no puf_ratios) produces a SALT deduction for all millionaires in 2021, with the SALT cap removed, of $110.7 billion. The value for millionaire filers in 2017 (also uncapped) was $127.7 billion, per note to Frank Sammartino. So $110.7 billion seems way too small and different weights are needed. (I can't easily compare all records to IRS total because I would have to drop out nonfilers.)
++   **National weights for 2021**
+    +   Get puf_weights for 2017 and 2021 (WT2017, WT2021)
+    +   Retrieve and merge in my 2017 filer weights and a filer indicator
+    +   Create REWT2017 with WT2017 for 2017 nonfilers and my 2017 weight for 2017 filers
+    +   Create REWT2021 as follows:
+        +   2017 nonfilers: use WT2021 (their TaxData weight)
+        +   2017 filers: REWT2017 + 4.8%, the growth the sum of TaxData weights for the 2017 nonfilers -- this is a 1.18% cagr for the number of filers, which I think (??) is reasonable
+            +   IRS projected growth in returns 2017-2021 was 5.38% [per Tax-Calculator](https://github.com/PSLmodels/taxdata/blob/master/puf_stage1/IRS_return_projection.csv) so this seems reasonable (within 0.6% over 4 years)
+            +   IRS number of returns in 2021 is 161,707,000
+            +   When I use these weights to calculate weighted number of 2017 filers in 2021, I get 160,227,908, 0.9% lower than IRS
+            +   puf weights give 151,156,078, 6.5% lower than IRS
+            +   a better comparison might be filers under 2021 rules...
+
+        
+## State weights
+
+I apply my state shares for each 2017 filer record to the 2021 national weight for those records.
+Have not yet addressed 2017 nonfilers. For now, they drop out of the analysis.
+
+
+## Some links to estimates
+
++   [TPC 2020 repeal $76b](https://www.taxpolicycenter.org/taxvox/tpc-analyzes-five-ways-replace-salt-deduction-cap)
++   [also this](https://www.taxpolicycenter.org/publications/alternatives-tcja-limit-state-and-local-tax-deduction/full)
+
+
+# Preparation
+
 
 ```{r setup, eval=TRUE, include=FALSE, echo=FALSE, message=FALSE, warning=FALSE}
 # note that eval=TRUE unless set to FALSE
 knitr::opts_chunk$set(echo = FALSE)
 options(width = 150)
 ```
-
-# Possible sources of information on targets for 2021
-
-Note: 
-
-*   All puf numbers given below are for the PUF with original weights and growfactors, but WITHOUT puf_ratios adjustments.
-*   The reweighted numbers are the same, but have weights estimated by Boyd.
-*   [IRS returns per Tax-Calculator](https://github.com/PSLmodels/taxdata/blob/master/puf_stage1/IRS_return_projection.csv): 161,707,000 
-    +   puf: 151,156,078
-    +   reweighted: 160,227,908
-*   [SOI estimates](https://github.com/PSLmodels/taxdata/blob/master/puf_stage1/SOI_estimates.csv) are only for 2008-2017
-*   [CBO baseline](https://github.com/PSLmodels/taxdata/blob/master/puf_stage1/CBO_baseline.csv) has important variables from 2008-2031
-*   [Stage_II_targets.csv]() has important values for 2011-2031. Selected 2021 values given below
-    +   Wages and Salaries: $1 Million and Over: 425,117,251; with the $1m+ break is on agi I get:
-          +   $588.9076 for puf
-          +   $629.6201	for reweighted
-          +   $489.053 as the IRS 2017 value (add 4 years of growth), which gives 4.75% compound growth for puf, or 6.5% for reweighted, which seems high.
-          +   [growfactor](https://github.com/PSLmodels/taxdata/blob/master/puf_stage1/growfactors.csv) compound wage growth over the 4 years was only 2.9% so this is a surprise that needs to be explored
-    +   Net Capital Gains in AGI: 1,176,100,576
-
-Some links to estimates:
-*   [TPC 2020 repeal $76b](https://www.taxpolicycenter.org/taxvox/tpc-analyzes-five-ways-replace-salt-deduction-cap)
-*   [also this](https://www.taxpolicycenter.org/publications/alternatives-tcja-limit-state-and-local-tax-deduction/full)
 
 
 ```{r libraries}
@@ -51,6 +105,24 @@ options(tibble.print_max = 80, tibble.print_min = 80) # if more than 60 rows, pr
 library(arrow)
 library(kableExtra)
 library(btools)
+library(gt)
+
+
+# https://cran.r-project.org/web/packages/arrow/vignettes/install.html
+# install.packages("arrow", repos = "https://arrow-r-nightly.s3.amazonaws.com")
+# install_arrow(nightly=TRUE)  # from the script in this directory
+
+# Sys.setenv(
+#       LIBARROW_DOWNLOAD = "true",
+#       LIBARROW_BINARY = binary,
+#       LIBARROW_MINIMAL = minimal,
+#       ARROW_R_DEV = verbose,
+#       ARROW_USE_PKG_CONFIG = use_system
+#     )
+
+# Sys.getenv("LIBARROW_MINIMAL", FALSE)
+# Sys.getenv("LIBARROW_MINIMAL")
+
 
 ```
 
@@ -90,15 +162,19 @@ agi_stubs <- tribble(~agicut, ~agilabel,
 
 
 
-```{r get_data}
+```{r get_weights, include=FALSE}
+# get national weights, state weights and create state shares,
 
 stweights2017 <- read_csv(paste0(WEIGHTDIR, 'allweights2017_geo_restricted.csv')) %>%
   mutate(RECID=pid + 1)
+
 glimpse(stweights2017)
 
 stshares <- stweights2017 %>%
   mutate(across(all_of(geos), ~ .x / geoweight_sum))
+
 glimpse(stshares)
+
 # do all shares add to 1?
 check <- stshares %>%
   pivot_longer(cols=all_of(geos)) %>%
@@ -106,225 +182,374 @@ check <- stshares %>%
   summarise(sum=sum(value), .groups="drop")
 check %>% filter(abs(sum - 1) > 1e-6)  
 
-
 usweights <- read_csv(paste0(SCRATCHDIR, 'weights2021.csv'))
 glimpse(usweights)
 usweights %>%
   group_by(filer2017) %>%
-  summarise(across(-c(RECID), ~ sum(.x)))
+  summarise(across(-c(RECID), ~ sum(.x))) %>%
+  add_row() %>%
+  mutate(across(-filer2017, ~ifelse(is.na(filer2017), sum(.x, na.rm=TRUE), .x)))
 
+# create state weights for both sets of 2021 national weights
 stweights2021 <- usweights %>%
+  select(RECID, filer2017, WT2021, REWT2021) %>%
+  pivot_longer(cols=c(WT2021, REWT2021),
+               names_to = "wtype", values_to = "usweight") %>%
   left_join(stshares %>% select(RECID, all_of(geos)), by="RECID") %>%
-  mutate(across(all_of(geos), ~ .x * REWT2021))
-glimpse(stweights2021)
+  mutate(across(all_of(geos), ~ .x * usweight))
+glimpse(stweights2021) # note that this gives us NA state weights for nonfilers; eventually we'll have nonfiler weights
 
+# verify that state weights sum to national weights for each record
 check <- stweights2021 %>%
   filter(filer2017) %>%
-  select(RECID, REWT2021, all_of(geos)) %>%
-  pivot_longer(-c(RECID, REWT2021)) %>%
-  group_by(RECID, REWT2021) %>%
+  select(RECID, wtype, usweight, all_of(geos)) %>%
+  pivot_longer(-c(RECID, wtype, usweight)) %>%
+  group_by(RECID, wtype, usweight) %>%
   summarise(wtsum=sum(value), .groups="drop") %>%
-  mutate(diff=wtsum - REWT2021,
-         pdiff=diff / REWT2021 * 100)
-quantile(check$pdiff)
+  mutate(diff=wtsum - usweight,
+         pdiff=diff / usweight * 100)
+# quantile(check$pdiff)  # should be very near zero
 
+# Are any weights negative??
+# summary(stweights2021)  # no
+
+```
+
+
+```{r get_tcoutput}
 
 basedf <- read_parquet(paste0(SCRATCHDIR, "base2021.parquet"),
-                       col_select = all_of(c("RECID", "c00100", "e00200", "c18300", "s006", "iitax")))
+                       col_select = all_of(c("RECID", "c00100", "e00200", "c18300", "s006", "iitax"))) %>%
+  mutate(agibase=c00100, type="base")
 
 reformdf <- read_parquet(paste0(SCRATCHDIR, "reform2021.parquet"),
-                       col_select = all_of(c("RECID", "c00100", "e00200", "c18300", "s006", "iitax")))
+                       col_select = all_of(c("RECID", "c00100", "e00200", "c18300", "s006", "iitax"))) %>%
+  left_join(basedf %>% select(RECID, agibase), by="RECID") %>% mutate(type="reform")
+
+
+
+```
+
+
+
+```{r include=FALSE}
+# put base agi on reform file, stack the files, add US reweight, add agi group
+
+stack <- bind_rows(basedf, reformdf) %>%
+  left_join(stweights2021, by="RECID") %>%
+  mutate(stub=cut(agibase, agi_stubs$agicut, labels=agi_stubs$agilabel[-1], include.lowest = TRUE, right=FALSE),
+         stubnum=as.integer(stub))
+
+glimpse(stack)  
+
+
+```
+
+# Records with tax increases, weighted by default puf weights
+```{r include=TRUE}
+# do any records have tax increases
+increases <- stack %>%
+  filter(wtype=="WT2021") %>%
+  select(RECID, stub, stubnum, filer2017, type, agibase, usweight, wtype, iitax) %>%
+  pivot_wider(names_from = type, values_from = iitax) %>%
+  mutate(change=reform - base) %>%
+  filter(change > 0)
+
+increases %>% 
+  arrange(-change)
+
+increases %>%
+  group_by(stubnum, stub, wtype) %>%
+  summarise(n=n(), wtd=sum(usweight), wtdchange=sum(change * usweight), .groups="drop") %>%
+  arrange(-wtdchange) 
+  
+```
+
+
+
+
+# Preliminary analysis
+
+```{r include=FALSE}
+# create a file that has state weights with original puf weights and with my puf weights
+
+wstack <- stack %>%
+  mutate(across(c(usweight, all_of(geos)),
+                list(agi=~.x * c00100,
+                     iitax=~.x * iitax,
+                     salt=~.x * c18300)))
+
+wsums <- wstack %>%
+  filter(filer2017) %>%
+  select(-c(RECID, filer2017, c00100, e00200, c18300, s006, iitax, agibase)) %>%
+  group_by(type, wtype, stubnum, stub) %>%
+  summarise(across(.cols=everything(), sum), .groups="drop")
+ns(wsums)
+
+wsums_long <- wsums %>%
+  pivot_longer(-c(type, wtype, stubnum, stub))
+
+# add in the all-stubs sum for each group
+stubsums <- wsums_long %>%
+  group_by(type, wtype, name) %>%
+  summarise(value=sum(value, na.rm=TRUE), .groups="drop") %>%
+  mutate(stubnum=0, stub="Total")
+
+allsums <- wsums_long %>%
+  mutate(stub=as.character(stub)) %>%
+  bind_rows(stubsums) %>%
+  mutate(name=ifelse(!str_detect(name, "_"), paste0(name, "_numret"), name),
+         name=str_replace(name, "usweight", "US")) %>%
+  separate(name, into=c("stabbr", "variable")) %>%
+  arrange(wtype, type, stabbr, variable, stubnum)
+
+count(allsums, type)
+count(allsums, wtype)
+count(allsums, stubnum, stub)
+count(allsums, variable)
+count(allsums, stabbr)
+
+# iris %>%
+#   group_by(Species) %>%
+#   summarise(across(starts_with("Sepal"), list(mean, sd), .names = "{.col}.fn{.fn}"))
+
+# iris %>%
+#   group_by(Species) %>%
+#   summarise(across(starts_with("Sepal"), list(mean = mean, sd = sd), .names = "{.col}.{.fn}"))
 
 ```
 
 
 ```{r}
-# put base agi on reform file, stack the files, add US reweight, add agi group
-basedf <- basedf %>% mutate(agibase=c00100, type="base")
-reformdf <- reformdf %>% left_join(basedf %>% select(RECID, agibase), by="RECID") %>% mutate(type="reform")
+# selected functions
+getvar <- function(wtype, stabbr, variable){
+  allsums %>%
+    filter(wtype==!!wtype, stabbr==!!stabbr, variable==!!variable) %>%
+    pivot_wider(names_from = type) %>%
+    mutate(change=reform - base,
+         pchange=change / base) %>%
+    select(wtype, stabbr, variable, everything())
+}
 
-stack <- bind_rows(basedf, reformdf) %>%
-  left_join(usweights %>% select(RECID, filer2017, REWT2021), by="RECID") %>%
-  mutate(stub=cut(agibase, agi_stubs$agicut, labels=agi_stubs$agilabel[-1], include.lowest = TRUE, right=FALSE),
-         stubnum=as.integer(stub))
 
-glimpse(stack)  
+# getvar(wtype="REWT2021", stabbr="US", variable="iitax")
+# getvar(wtype="WT2021", stabbr="US", variable="iitax")
+# getvar(wtype="REWT2021", stabbr="MS", variable="iitax")
+
+vartab <- function(tabdata, title, dollar_digits=1){
+  dcols <- c("base", "reform", "change")
+  tabdata %>%
+    gt()  %>%  
+    tab_header(
+      title = title,
+      subtitle = "Billions of dollars"
+    ) %>%
+    fmt_currency(
+      columns = all_of(dcols),
+      rows=1,
+      decimals = dollar_digits,
+      scale_by = 1e-9,
+      suffixing = FALSE
+    )   %>%
+    fmt_number(
+      columns = all_of(dcols),
+      rows=2:nrow(tabdata),
+      decimals = dollar_digits,
+      scale_by = 1e-9,
+      suffixing = FALSE
+    ) %>%
+    fmt_percent(
+      columns = "pchange",
+      decimals = 1
+    ) %>%
+    tab_style(
+      style = list(
+        cell_fill(color = "#f7f7f7")
+      ),
+      locations = cells_body(
+        rows = seq(1, nrow(tabdata), 2)
+        )
+    )
+}
+
+
+```
+
+
+
+## Compare base vs. reform in 2021 with puf weights and with reweights
+
+The following tables show iitax, nationally, 2017 filers only, under base and reform, with default puf weights and with reweighted values, followed by the same kind of information for the taxes-paid deduction.
+
+Note that:
+
++   Reweighted is about $11b more expensive than puf weights
++   Essentially all of the difference is for millionaires. See the earlier discussion of millionaires - it seems pretty clear that puf weights have too little taxes paid deductions for millionaires.
+
+
+### iitax results with puf weights and then with reweights
+
+\   
+Here are the puf-weighted values
+\   
+\   
+
+```{r include=TRUE}
+
+tabdata <- getvar(wtype="WT2021", stabbr="US", variable="iitax")
+vartab(tabdata, "iitax: SALT cap repeal vs. 2021 current law, 2021 income levels, default puf weights")
+
+
+```
+
+
+\   
+And here are the reweighted values:
+\   
+\   
+
+
+```{r include=TRUE}
+tabdata <- getvar(wtype="REWT2021", stabbr="US", variable="iitax")
+vartab(tabdata, "iitax:  SALT cap repeal vs. 2021 current law, 2021 income levels, reweighted")
+
+
+```
+
+
+### Taxes paid deduction with puf weights and then with reweights
+
+\    
+Here are the puf-weighted values  
+\   
+\   
+
+```{r include=TRUE}
+
+tabdata <- getvar(wtype="WT2021", stabbr="US", variable="salt")
+vartab(tabdata, "Taxes-paid deduction: SALT cap repeal vs. 2021 current law, 2021 income levels, default puf weights")
+
+
+```
+
+\     
+\   
+Here are the reweighted values.
+\   
+\   
+
+    
+```{r include=TRUE}
+
+tabdata <- getvar(wtype="REWT2021", stabbr="US", variable="salt")
+vartab(tabdata, "Taxes-paid deduction: SALT cap repeal vs. 2021 current law, 2021 income levels, reweighted")
+
+
+```
+
+
+## States ranked by $ billions change in iitax, base to reform
+
+```{r include=TRUE}
+allsums %>%
+  filter(stubnum==0, variable=="iitax") %>%
+  pivot_wider(names_from = type) %>%
+  mutate(change=reform - base,
+         change=change / 1e9) %>%
+  select(wtype, stub, stabbr, variable, change) %>%
+  pivot_wider(names_from = wtype, values_from = change) %>%
+  select(stabbr, WT2021, REWT2021) %>%
+  mutate(diff=REWT2021 - WT2021,
+         pdiff=diff / WT2021 * 100) %>%
+  arrange(REWT2021) %>%
+  kbl(digits=c(0, 2, 2, 2, 1), caption="Change in iitax from repeal of SALT cap, puf weights and reweights, ranked by reweights with difference and % diff from WT2021") %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = TRUE)
   
 
 ```
 
 
-Basic checks on the national stacked base-reform file before going further:
+## States ranked by % change in iitax, base to reform
 
 ```{r include=TRUE}
-# check:
-# aggregatess
-check <- stack %>% 
-  group_by(type) %>%
-  summarise(n=n(),
-            filern=sum(filer2017),
-            weight_puf=sum(s006),
-            weight_rwt=sum(REWT2021),
-            filer_puf=sum(filer2017 * s006),
-            filer_rwt=sum(filer2017 * REWT2021),
-            agibase_puf=sum(agibase * s006) / 1e9,
-            agibase_rwt=sum(agibase * REWT2021) / 1e9,
-            c00100_puf=sum(c00100 * s006) / 1e9,
-            c00100_rwt=sum(c00100 * REWT2021) / 1e9,
-            iitax_puf=sum(iitax * s006) / 1e9,
-            iitax_rwt=sum(iitax * REWT2021) / 1e9)
-
-check %>%
-  kbl()
-
-check <- stack %>% 
-  select(type, stubnum, stub, iitax, s006, REWT2021) %>%
-  pivot_longer(cols=c(s006, REWT2021), names_to = "wtype", values_to = "weight") %>%
-  group_by(type, stubnum, stub, wtype) %>%
-  summarise(iitax=sum(iitax * weight) / 1e9, .groups="drop")
-
-gsums <- check %>%
-  group_by(type, wtype) %>%
-  summarise(iitax=sum(iitax), .groups="drop") %>%
-  mutate(stubnum=0, stub="  Total")
-
-check <- bind_rows(check, gsums) %>%
-  arrange(type, stubnum, stub)
-
-check %>%
-  pivot_wider(names_from = type, values_from = iitax) %>%
+allsums %>%
+  filter(stubnum==0, variable=="iitax") %>%
+  pivot_wider(names_from = type) %>%
   mutate(change=reform - base,
          pchange=change / base * 100) %>%
-  kbl(digits=c(0, 0, 0, 2, 2, 2, 1)) %>%
-  kable_classic_2(full_width = TRUE)
-
-
-```
-
-
-```{r eval=FALSE}
-# quick checsk
-bsum <- sum(basedf$iitax * basedf$s006)
-rsum <- sum(reformdf$iitax * reformdf$s006)
-(rsum - bsum) / 1e9  #  -80.14411, same as python
-
-# now bring in weights
-base2 <- basedf %>%
-  left_join(usweights %>% select(RECID, filer2017, WT2021, REWT2021),
-            by="RECID") %>%
-  mutate(type="base")
-
-
-ref2 <- reformdf %>%
-  left_join(usweights %>% select(RECID, filer2017, WT2021, REWT2021),
-            by="RECID") %>%
-  mutate(type="reform")
-
-sum(base2$iitax * base2$WT2021)
-sum(base2$iitax * base2$REWT2021)
-sum(ref2$iitax * ref2$WT2021)
-sum(ref2$iitax * ref2$REWT2021)
-
-# salt
-sum(base2$c18300 * base2$WT2021)
-sum(base2$c18300 * base2$REWT2021)
-
-(sum(ref2$iitax * ref2$WT2021) - sum(base2$iitax * base2$WT2021)) / 1e9  # -80.14411
-(sum(ref2$iitax * ref2$REWT2021) - sum(base2$iitax * base2$REWT2021)) / 1e9  # -91.22943
-
-
-
-comp <- bind_rows(base2, ref2) %>%
-  mutate(stub=cut(c00100, agi_stubs$agicut, labels=agi_stubs$agilabel[-1], include.lowest = TRUE, right=FALSE),
-         stubnum=as.integer(stub))
-
-# comp %>%
-#   filter(type=="reform", filer2017) %>%
-#   group_by(filer2017, stubnum, stub, type) %>%
-#   summarise(salt_td=sum(c18300 * WT2021) / 1e9, salt_rw=sum(c18300 * REWT2021) / 1e9, .groups="drop")
-
-# comp %>%
-#   group_by(stubnum, stub, type) %>%
-#   summarise(salt_td=sum(c18300 * WT2021) / 1e9, salt_rw=sum(c18300 * REWT2021) / 1e9, .groups="drop")
- 
-# comp %>%
-#   group_by(type) %>%
-#   summarise(salt_td=sum(c18300 * WT2021) / 1e9, salt_rw=sum(c18300 * REWT2021) / 1e9, .groups="drop") %>%
-#   mutate(diff=salt_rw - salt_td)
- 
-# comp %>%
-#   group_by(type, filer2017) %>%
-#   summarise(iitax_td=sum(iitax * WT2021) / 1e9, iitax_rw=sum(iitax * REWT2021) / 1e9, .groups="drop")
- 
-# comp %>%
-#   group_by(type, filer2017) %>%
-#   summarise(iitax_td=sum(iitax * WT2021) / 1e9, iitax_rw=sum(iitax * REWT2021) / 1e9, .groups="drop") %>%
-#   pivot_longer(-c(type, filer2017)) %>%
-#   pivot_wider(names_from = type) %>%
-#   mutate(change=reform - base)
- 
-# comp %>%
-#   mutate(ws1mplus=e00200 >= 1e6) %>%
-#   group_by(type, ws1mplus) %>%
-#   summarise(ws_td=sum(e00200 * WT2021) / 1e9, iitax_rw=sum(e00200 * REWT2021) / 1e9, .groups="drop")
- 
-# comp %>%
-#   mutate(agi1mplus=c00100 >= 1e6) %>%
-#   group_by(type, agi1mplus) %>%
-#   summarise(ws_td=sum(e00200 * WT2021) / 1e9, iitax_rw=sum(e00200 * REWT2021) / 1e9, .groups="drop")
-
-
-```
-
-# Preliminary analysis
-
-```{r}
-# create a file that has state weights with original puf weights and with my puf weights
-
-glimpse(comp)
-
-
-strwt <- comp %>%
-  left_join(stweights2021 %>% select(RECID, all_of(c(state.abb, "other"))), by="RECID") %>%
-  mutate(across(c(REWT2021, all_of(geos)), ~ .x * iitax))
-
-stpuf <- comp %>%
-  left_join(stweights2021 %>% select(RECID, all_of(c(state.abb, "other"))), by="RECID") %>%
-  mutate(across(c(WT2021, all_of(geos)), ~ .x * iitax))
-
-
-taxsums <- diffs %>%
-  group_by(type, stubnum, stub) %>%
-  summarise(across(c(REWT2021, all_of(c(state.abb, "other"))),
-                   ~ sum(.x, na.rm=TRUE)), .groups="drop")
-
-taxsums %>%
-  pivot_longer(-c(type, stubnum, stub)) %>%
-  pivot_wider(names_from = type) %>%
-  mutate(diff=reform - base) %>%
-  filter(name=="NY")
-
-analysis <- 
-  taxsums %>%
-  pivot_longer(-c(type, stubnum, stub)) %>%
-  pivot_wider(names_from = type) %>%
-  mutate(diff=reform - base,
-         pdiff=diff / base * 100)
-
-analysis %>%
-  filter(name=="NY")
-
-count(analysis, name)
-
-analysis %>%
-  mutate(grp=ifelse(name=="REWT2021", "US", "states")) %>%
-  group_by(grp) %>%
-  summarise(across(c(base, reform, diff), ~ sum(.x, na.rm=TRUE)))
-
-
+  select(wtype, stub, stabbr, variable, pchange) %>%
+  pivot_wider(names_from = wtype, values_from = pchange) %>%
+  select(stabbr, WT2021, REWT2021) %>%
+  mutate(diff=REWT2021 - WT2021) %>%
+  arrange(REWT2021) %>%
+  kbl(digits=c(0, 1, 1, 1), caption="Change in iitax from repeal of SALT cap, puf weights and reweights, ranked by reweights with difference and % diff from WT2021") %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = TRUE)
+  
+  
 
 ```
 
 
+## Why do MS and KY have such large percentage changes under either set of national weights?
 
 
+### Kentucky iitax then salt, with reweights
+
+```{r include=TRUE}
+tabdata <- getvar(wtype="REWT2021", stabbr="KY", variable="iitax")
+vartab(tabdata, 
+       "iitax: SALT cap repeal vs. 2021 current law, 2021 income levels, reweights",
+       dollar_digits=3)
+
+```
+
+```{r include=TRUE}
+tabdata <- getvar(wtype="REWT2021", stabbr="KY", variable="salt")
+vartab(tabdata, 
+       "salt: SALT cap repeal vs. 2021 current law, 2021 income levels, reweights",
+       dollar_digits=3)
+
+```
+
+
+### Mississippi iitax then salt, with reweights
+
+```{r include=TRUE}
+
+# getvar(wtype="REWT2021", stabbr="MS", variable="iitax")
+tabdata <- getvar(wtype="REWT2021", stabbr="MS", variable="iitax")
+vartab(tabdata, 
+       "iitax: SALT cap repeal vs. 2021 current law, 2021 income levels, reweights",
+       dollar_digits=3)
+
+```
+
+
+```{r include=TRUE}
+tabdata <- getvar(wtype="REWT2021", stabbr="MS", variable="salt")
+vartab(tabdata, 
+       "salt: SALT cap repeal vs. 2021 current law, 2021 income levels, reweights",
+       dollar_digits=3)
+
+```
+
+
+### For comparison: New York iitax then salt, with reweights
+
+```{r include=TRUE}
+tabdata <- getvar(wtype="REWT2021", stabbr="NY", variable="iitax")
+vartab(tabdata, 
+       "iitax: SALT cap repeal vs. 2021 current law, 2021 income levels, reweights",
+       dollar_digits=3)
+
+```
+
+
+```{r include=TRUE}
+tabdata <- getvar(wtype="REWT2021", stabbr="NY", variable="salt")
+vartab(tabdata, 
+       "salt: SALT cap repeal vs. 2021 current law, 2021 income levels, reweights",
+       dollar_digits=3)
+```
