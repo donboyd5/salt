@@ -146,7 +146,7 @@ library(gt)
 
 ```
 
-```{r}
+```{r git_info}
 # link to github
 # see DONOTCOMMIT.txt for my personal access token
 
@@ -158,10 +158,8 @@ library(gt)
 # usethis::gh_token_help()
 # gitcreds::gitcreds_set()
 
-# then, finally:
+# then, IF NOT ALREADY DONE, create a repo on github:
 # usethis::use_github()
-
-
 
 ```
 
@@ -257,12 +255,14 @@ check <- stweights2021 %>%
 
 ```{r get_tcoutput}
 
+vars <- c("RECID", "c00100", "e00200",  "standard", "c04470", "c18300",  "s006", "iitax")
+
 basedf <- read_parquet(paste0(SCRATCHDIR, "base2021.parquet"),
-                       col_select = all_of(c("RECID", "c00100", "e00200", "c18300", "s006", "iitax"))) %>%
+                       col_select = all_of(vars)) %>%
   mutate(agibase=c00100, type="base")
 
 reformdf <- read_parquet(paste0(SCRATCHDIR, "reform2021.parquet"),
-                       col_select = all_of(c("RECID", "c00100", "e00200", "c18300", "s006", "iitax"))) %>%
+                       col_select = all_of(vars)) %>%
   left_join(basedf %>% select(RECID, agibase), by="RECID") %>% mutate(type="reform")
 
 
