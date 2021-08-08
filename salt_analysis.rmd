@@ -10,7 +10,7 @@ output:
     toc: yes
     number_sections: yes
 editor_options:
-  chunk_output_type: console
+  chunk_output_type: inline
 ---
 
 # Intro notes
@@ -111,7 +111,7 @@ agi_stubs <- tribble(~agicut, ~agilabel,
                      200e3, "$100k < $200k",
                      500e3, "$200k < $500k",
                      1e6, "$500k < $1m",
-                     Inf, "Above $1m")
+                     Inf, "$1m+")
 # The following will cut an agi variable with the endpoints of each interval set properly, right=FALSE:
 # cut(c00100, agi_stubs$agicut, labels=agi_stubs$agilabel[-1], include.lowest = TRUE, right=FALSE)
 # test
@@ -330,7 +330,9 @@ vartab <- function(tabdata, title, dollar_digits=1){
 ```
 
 
-# National analysis
+# Possible tables and graphs for the report
+
+## National analysis
 
 ```{r}
 # data3 is the key result
@@ -365,39 +367,180 @@ data3 <- data2 %>%
 ```
 
 
+```{r ustable, include=TRUE}
+
+tabdata <- data3 %>%
+  filter(stabbr=="US", measure %in% c("wtdsum", "avgval"), variable=="iitax") %>%
+  select(stubnum, stub, measure, base, reform, change, pchange) %>%
+  pivot_longer(-c(stubnum, stub, measure)) %>%
+  unite("name", c(measure, name)) %>%
+  pivot_wider() %>%
+  mutate(junk="") %>%
+  arrange(stubnum) %>%
+  select(stub, starts_with("wtdsum"), junk, starts_with("avg"))
+
+dcols <- c("wtdsum_base", "wtdsum_reform", "wtdsum_change", "avgval_base", "avgval_reform", "avgval_change")
+pcols <- c("wtdsum_pchange", "avgval_pchange")
+
+tab <- tabdata %>%
+  gt()  %>%  
+  tab_header(
+    title = "Impact of SALT-cap repeal for the United States",
+    subtitle = "Compared to current 2021 law"
+  ) %>%
+  cols_label(
+      stub = "",
+      wtdsum_base = "2021 current law",
+      wtdsum_reform = "SALT-cap repeal",
+      wtdsum_change = html("$ change: <br>Repeal minus<br>current law"),
+      wtdsum_pchange = html("% change: <br>Repeal versus<br>current law"),
+      
+      junk="",
+      
+      avgval_base = "2021 current law",
+      avgval_reform = "SALT-cap repeal",
+      avgval_change = html("$ change: <br>Repeal minus<br>current law"),
+      avgval_pchange = html("% change: <br>Repeal versus<br>current law")
+    ) %>%
+  
+  fmt_currency(
+    columns = all_of(str_subset(dcols, "wtdsum")),
+    rows=1,
+    decimals = 1,
+    scale_by = 1e-9,
+    suffixing = FALSE
+  )   %>%
+  fmt_currency(
+    columns = all_of(str_subset(dcols, "avgval")),
+    rows=1,
+    decimals = 0,
+    scale_by = 1,
+    suffixing = FALSE
+  )   %>%
+  fmt_number(
+    columns = all_of(str_subset(dcols, "wtdsum")),
+    rows=2:nrow(tabdata),
+    decimals = 1,
+    scale_by = 1e-9,
+    suffixing = FALSE
+  ) %>%
+  fmt_number(
+    columns = all_of(str_subset(dcols, "avgval")),
+    rows=2:nrow(tabdata),
+    decimals = 0,
+    scale_by = 1,
+    suffixing = FALSE
+  ) %>%
+  
+  fmt_percent(
+    columns = pcols,
+    decimals = 1
+  ) %>%
+  fmt_missing(
+    columns=pcols,
+    missing_text = "--") %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "#f7f7f7")
+    ),
+    locations = cells_body(
+      rows = seq(1, nrow(tabdata), 2)
+      )
+  ) %>%
+  tab_spanner(
+    label = html("Total impact in $ billions"),
+    columns = c("wtdsum_base", "wtdsum_reform", "wtdsum_change", "wtdsum_pchange",)
+  ) %>%
+  tab_spanner(
+    label = html("Average impact per return, in dollars"),
+    columns = c("avgval_base", "avgval_reform", "avgval_change", "avgval_pchange")
+  ) %>%
+  cols_width(
+    stub ~ px(150),
+    starts_with("wtd") ~ px(100),
+    junk ~ px(20),
+    starts_with("avg") ~ px(100),
+    everything() ~ px(60)
+  )
+
+tab
+
+# configure save settings for wide table
+gtsave(tab, "USImpact_table.png", path = here::here("results"), zoom=2, vwidth=1500)  # zoom 2 default
+
+
+```
+
+
+## State analysis
+
+### Table of states ranked by $ billions change in iitax, base to reform
+
 ```{r include=TRUE}
+tabdata <- data3 %>%
+  filter(stubnum==0, variable=="iitax", measure=="wtdsum") %>%
+  filter(stabbr %in% c("US", state.abb)) %>%
+  mutate(stname=get_stname(stabbr)) %>%
+  arrange(change) %>%
+  select(stname, stname, base, reform, change, pchange)
 
-st_tab <- function(st, var, data=data1){
-  df <- data %>%
-    filter(stabbr==st, variable==var)
-  df %>%
-    select(type, stubnum, stub, avgval) %>%
-    pivot_wider(names_from=type, values_from=avgval) %>%
-    mutate(change=reform - base,
-           pchange=ifelse(base > 0, change / base, NA_real_))
-}
 
-st_tab("US", "iitax")
-# st_tab("NY", "iitax")
-# st_tab("KY", "iitax")
-# st_tab("MS", "iitax")
 
-data3
-df <- data3 %>%
-  filter(stabbr=="US", variable=="iitax", wtype=="REWT2021", measure=="wtdsum") %>%
-  select(stub, base, reform, change, pchange)
-vartab(df, title="abvc", dollar_digits=1)
+tab <- tabdata %>%
+  gt()  %>%  
+  tab_header(
+    title = "States ranked by impact of SALT-cap repeal, $ billions",
+    subtitle = "Compared to current 2021 law"
+  ) %>%
+  cols_label(
+      base = "2021 current law",
+      reform = "SALT-cap repeal",
+      change = html("$ change: <br>Repeal minus<br>current law"),
+      pchange = html("% change: <br>Repeal versus<br>current law")
+    ) %>%
+  fmt_currency(
+    columns = c("base", "reform", "change"),
+    rows=1,
+    decimals = 1,
+    scale_by = 1e-9,
+    suffixing = FALSE
+  )   %>%
+  fmt_number(
+    columns = c("base", "reform", "change"),
+    rows=2:nrow(tabdata),
+    decimals = 1,
+    scale_by = 1e-9,
+    suffixing = FALSE
+  ) %>%
+  fmt_percent(
+    columns = "pchange",
+    decimals = 1
+  ) %>%
+  fmt_missing(
+    columns="pchange",
+    missing_text = "--") %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "#f7f7f7")
+    ),
+    locations = cells_body(
+      rows = seq(1, nrow(tabdata), 2)
+      )
+  )
+tab
+
+# configure save settings for wide table
+gtsave(tab, "states_ranked_table.png", path = here::here("results"), zoom=2, vwidth=1500)  # zoom 2 default
 
 
 
 ```
 
 
-# State analysis
 
-## Map of average change in iitax
+### Map of average change in iitax, all returns (not just itemizers, not just those with tax change)
 
-```{r include=TRUE}
+```{r}
 # map of $ change of all returns
 theme_map <- function(base_size=9, base_family="") {
   # see:
@@ -442,19 +585,23 @@ get_stateplot <- function(data, fillvar){
 }
 
 
+```
+
+
+```{r map, include=TRUE}
 mapdata <- data3 %>%
   filter(stabbr %in% state.abb, stubnum==0, variable=="iitax", measure=="avgval") %>%
   select(stabbr, variable, measure, base, reform, change, us_change)
 
-mapdata %>% 
-  arrange(change)
+# mapdata %>% 
+#   arrange(change)
 
 md2 <- mapdata %>%
   mutate(valgroup=cut(change, 5))
 
 md2 <- mapdata %>%
   mutate(valgroup=cut(change, 4))
-quantile(mapdata$change)
+# quantile(mapdata$change)
 
 md2 <- mapdata %>%
   mutate(change=-change,
@@ -466,7 +613,7 @@ md2 <- mapdata %>%
                                  "$200 < $500",
                                  "$500 < $1,000",
                                  ">= $1,000")))
-count(md2, valnum, valgroup, vlabs)
+# count(md2, valnum, valgroup, vlabs)
 
 # p <- get_stateplot(md2, "valgroup")
 # p + ggtitle("Repeal cap on SALT deduction",
@@ -484,21 +631,19 @@ p <- ggplot(data = mdata, aes(x = x, y = y, group = group)) +
   theme_map() +
   theme(legend.position = "right") +
   theme(legend.title = element_blank()) + 
-  ggtitle("Repeal cap on SALT deduction",
-          subtitle="Change in average federal income tax per return")
+  ggtitle("Impact of repealing the SALT cap, change in average federal income tax per return",
+          subtitle="Compared to current 2021 law")
 
 p
 ggsave(plot=p, filename=here::here("results", "avg_iitax_change_map.png"), width=8, height=6.5, units="in")
 
-# Build a color palette, 5 colors coming from the BuPu color palette"
-# coul <- brewer.pal(5, "BuPu") 
-
-
 ```
 
-## States $ billions -- horizontal bars
 
-```{r include=TRUE}
+
+### States $ billions -- horizontal bars
+
+```{r include=TRUE, fig.width=8, fig.height=6.5}
 df <- data3 %>%
   filter(!stabbr %in% c("US", "other"), stubnum==0, measure=="wtdsum", variable=="iitax") %>%
   select(stabbr, change)
@@ -528,10 +673,10 @@ ggsave(plot=p, filename=here::here("results", "iitax_change_hbars.png"), width=8
 ```
 
 
-## States average $ change per taxpayer -- horizontal bars
+### States average $ change per taxpayer -- horizontal bars
 
 
-```{r include=TRUE}
+```{r include=TRUE, fig.width=8, fig.height=6.5}
 df <- data3 %>%
   filter(!stabbr %in% c("US", "other"), stubnum==0, measure=="avgval", variable=="iitax") %>%
   select(stabbr, change)
@@ -546,7 +691,7 @@ p <- df %>%
   scale_x_continuous(name="Average tax reduction per return", labels = scales::dollar_format()) +
   theme_minimal() +
   theme(axis.text.y = element_text(hjust = 0)) +
-  ggtitle("Impact of repealing the SALT cap, average reduction per return (denominator=all returns)",
+  ggtitle("Impact of repealing the SALT cap, averaged over all filers",
           subtitle="Compared to current 2021 law")
 p
 ggsave(plot=p, filename=here::here("results", "iitax_avgchange_hbars.png"), width=8, height=6.5, units="in")
@@ -556,10 +701,121 @@ ggsave(plot=p, filename=here::here("results", "iitax_avgchange_hbars.png"), widt
 
 
 
-# Appendix: State-specific tables
+### States scatterplot
+
+```{r scatter, include=TRUE, fig.width=8, fig.height=6}
+
+pdata <- data3 %>%
+  filter(stabbr != "other", stubnum > 1, variable=="iitax", measure=="avgval") %>%
+  select(stabbr, stubnum, stub, change) %>%
+  mutate(us=stabbr=="US", change=-change) %>%
+  group_by(us, stubnum, stub) %>%
+  arrange(desc(change)) %>%
+  mutate(rank=row_number()) %>%
+  mutate(show=(rank <= 5) | (rank >= 46),
+         group=case_when(stabbr=="US" ~ "US",
+                         rank <= 5 ~ "bigcut",
+                         rank >= 46 ~ "smallcut",
+                         TRUE ~ "mid"),
+         group=factor(group, levels=c("US", "bigcut", "mid", "smallcut"))) %>%
+  ungroup
+
+# count(pdata, us, show, stub)
+# count(pdata, stub, group)
+
+p <- pdata %>%
+  filter(stubnum >= 6) %>%
+  mutate(stlabel=ifelse(group=="mid", "", stabbr)) %>%
+  ggplot(aes(x=reorder(stub, stubnum), y=change, label=stlabel, colour=group)) +
+    geom_point(size=0.5) +
+    geom_text(size=2) +
+    # geom_text(fontface="bold", nudge_x=nudgex(), nudge_y=nudgey(), size=1.75, check_overlap = TRUE) +
+    # geom_text_repel(size=2, nudge_x=0.15) +
+    geom_hline(yintercept = 0, colour="black", size=0.1) +
+    scale_colour_manual(values=c("darkgreen", "blue", "lightgrey", "red")) +
+    scale_x_discrete(name="Adjusted gross income range") +
+    scale_y_continuous(name="Average tax cut ($)", labels = scales::dollar_format()) +
+    ggtitle("SALT-cap repeal compared to 2021 current law",
+            subtitle="Selected adjusted gross income ranges") +
+    theme_bw() +
+    theme(legend.position = "none")
+
+p
+ggsave(filename=here::here("results", "taxcut_agirange_scatter.png"), plot=p, width=9, height=6, scale=1)
+
+
+```
+
+
+
+
+
+
+# Appendix: State-specific tables (not for the report)
 
 
 ```{r}
+
+statetab <- function(stabbr){
+  tabdata <- data3 %>%
+    filter(stabbr==!!stabbr, measure=="avgval", variable=="iitax") %>%
+    arrange(stubnum) %>%
+    select(stub, base:us_pchange, -us_base, -us_reform)
+  
+  dcols <- c("base", "reform", "change", "us_change")
+  pcols <- c("pchange", "us_pchange")
+  stname <- get_stname(stabbr)
+  tabdata %>%
+    gt()  %>%  
+    tab_header(
+      title = paste0("Impact of SALT-cap repeal on ", stname),
+      subtitle = "Compared to current 2021 law"
+    ) %>%
+   cols_label(
+      stub = "",
+      base = "2021 current law",
+      reform = "SALT-cap repeal",
+      change = html("$ change: <br>Repeal minus<br>current law"),
+      pchange = html("% change: <br>Repeal versus<br>current law"),
+      us_change = html("$ change: <br>Repeal minus<br>current law"),
+      us_pchange = html("% change: <br>Repeal versus<br>current law"),
+    ) %>%
+    fmt_currency(
+      columns = all_of(dcols),
+      rows=1,
+      decimals = 0,
+      suffixing = FALSE
+    )   %>%
+    fmt_number(
+      columns = all_of(dcols),
+      rows=2:nrow(tabdata),
+      decimals = 0,
+      suffixing = FALSE
+    ) %>%
+    fmt_percent(
+      columns = pcols,
+      decimals = 1
+    ) %>%
+    fmt_missing(
+      columns=pcols,
+      missing_text = "--") %>%
+    tab_style(
+      style = list(
+        cell_fill(color = "#f7f7f7")
+      ),
+      locations = cells_body(
+        rows = seq(1, nrow(tabdata), 2)
+        )
+    ) %>%
+    tab_spanner(
+      label = html(paste0("Impact in ", stname)),
+      columns = c("base", "reform", "change", "pchange")
+    ) %>%
+    tab_spanner(
+      label = html(paste0("Impact in the U.S.")),
+      columns = c("us_change", "us_pchange")
+    )
+}
 
 
 state_report <- function(st){
@@ -568,65 +824,29 @@ state_report <- function(st){
   cat("\n")
   cat("## ", stname, " \n")
  
-
-  # The economy
-  cat("\n")
-  cat("#### ", st, " GDP growth versus US", "\n")
-  print(gdp_comp_plot(st))
+  print(statetab(st))
   plot.new()
   dev.off()
  
   cat('\n\n')
- 
-
 }
-```
-
-
-
-# Older stuff
-
-## States ranked by \$ billions change in iitax, base to reform
-
-```{r include=TRUE}
-allsums %>%
-  filter(stubnum==0, variable=="iitax") %>%
-  pivot_wider(names_from = type) %>%
-  mutate(change=reform - base,
-         change=change / 1e9) %>%
-  select(wtype, stub, stabbr, variable, change) %>%
-  pivot_wider(names_from = wtype, values_from = change) %>%
-  select(stabbr, WT2021, REWT2021) %>%
-  mutate(diff=REWT2021 - WT2021,
-         pdiff=diff / WT2021 * 100) %>%
-  arrange(REWT2021) %>%
-  kbl(digits=c(0, 2, 2, 2, 1), caption="Change in iitax from repeal of SALT cap, puf weights and reweights, ranked by reweights with difference and % diff from WT2021") %>%
-  kable_styling(bootstrap_options = "striped",
-                full_width = TRUE)
-  
 
 ```
 
-## States ranked by % change in iitax, base to reform
 
-```{r include=TRUE}
-allsums %>%
-  filter(stubnum==0, variable=="iitax") %>%
-  pivot_wider(names_from = type) %>%
-  mutate(change=reform - base,
-         pchange=change / base * 100) %>%
-  select(wtype, stub, stabbr, variable, pchange) %>%
-  pivot_wider(names_from = wtype, values_from = pchange) %>%
-  select(stabbr, WT2021, REWT2021) %>%
-  mutate(diff=REWT2021 - WT2021) %>%
-  arrange(REWT2021) %>%
-  kbl(digits=c(0, 1, 1, 1), caption="Change in iitax from repeal of SALT cap, puf weights and reweights, ranked by reweights with difference and % diff from WT2021") %>%
-  kable_styling(bootstrap_options = "striped",
-                full_width = TRUE)
-  
-  
+```{r include=TRUE, results = 'asis'}
+
+# state_report("AK")
+
+purrr::map(state.abb, state_report)
+
+# for(st in c("AL", "NY")){
+#   state_report(st)
+# }
 
 ```
+
+
 
 # QC analysis starts here
 
