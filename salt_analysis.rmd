@@ -10,14 +10,12 @@ output:
     toc: yes
     number_sections: yes
 editor_options:
-  chunk_output_type: inline
+  chunk_output_type: console
 ---
-
 
 # Intro notes
 
-+   Go to the end to see QC analysis, issues, etc.
-
+-   Go to the end to see QC analysis, issues, etc.
 
 ```{r setup, eval=TRUE, include=FALSE, echo=FALSE, message=FALSE, warning=FALSE}
 # note that eval=TRUE unless set to FALSE
@@ -82,7 +80,6 @@ library(RColorBrewer)
 ```
 
 
-
 ```{r locations}
 
 os <- "win"  # win or linux
@@ -128,12 +125,16 @@ agi_stubs <- tribble(~agicut, ~agilabel,
 ```{r utility_functions}
 
 get_stname <- function(stabbr){
-  state.name[state.abb==stabbr]
+  allgeos <- c("US", geos)
+  allnames <- c("United States", state.name, "Other")
+  allnames[match(stabbr, allgeos)]
 }
+# get_stname("AK")
+# get_stname("US")
+# get_stname(state.abb)
 
 
 ```
-
 
 
 ```{r get_weights, include=FALSE}
@@ -329,10 +330,11 @@ vartab <- function(tabdata, title, dollar_digits=1){
 ```
 
 
-
 # National analysis
 
 ```{r}
+# data3 is the key result
+
 str(knitr::opts_chunk$get()) # default chuck options
 # opts_current$get()
 allsums  # "type"     "wtype"    "stubnum"  "stub"     "stabbr"   "variable" "value"  
@@ -391,196 +393,10 @@ vartab(df, title="abvc", dollar_digits=1)
 ```
 
 
-```{r}
-
-
-state_report <- function(st){
-  stname <- get_stname(st)
- 
-  cat("\n")
-  cat("## ", stname, " \n")
- 
-  cat("\n")
-  cat("### ", stname, " History \n")  #  {.tabset}
-
-  # The economy
-  cat("\n")
-  cat("#### ", st, " GDP growth versus US", "\n")
-  print(gdp_comp_plot(st))
-  plot.new()
-  dev.off()
- 
-  cat("\n")
-  cat("#### ", st, " GDP growth minus United States GDP growth \n")
-  print(gdp_diff_plot(st))
-  plot.new()
-  dev.off()
-  cat('\n\n')
- 
-  cat("\n")
-  cat("#### ", st, " State GDP growth and own-source revenue growth \n")
-  print(gdp_osr_plot(st))
-  plot.new()
-  dev.off()
-  cat('\n\n')
- 
-  cat("\n")
-  cat("####  ", st, " State income tax, state GDP growth, and lagged national capital gains\n")
-  print(iit_gdpcg_plot(st))
-  plot.new()
-  dev.off()
-  cat('\n\n')
- 
-   
-  cat("\n")
-  cat("### ", stname, " Forecasts \n")  # {.tabset}
- 
-  # OSR forecasts
-  cat("\n")
-  cat("#### ", st, " Own-source revenue scenarios\n")
-  cat("##### ", st, " Method: Simple model\n")
-  print(osr_scen(st, method="model"))
-  plot.new()
-  dev.off()
-  cat("##### ", st, " Method: Close gap between revenue as % of state GDP, and 2019 value\n")
-  print(osr_scen(st, method="gapclose"))
-  plot.new()
-  dev.off()
- 
-  cat("##### ", st, " Methods comparison, $ millions, baseline scenario\n")
-  print(osr_method(st, scenario="baseline", var="osr"))
-  plot.new()
-  dev.off()
-  print(osr_method(st, scenario="baseline", var="iit"))
-  plot.new()
-  dev.off()
-  print(osr_method(st, scenario="baseline", var="gst"))
-  plot.new()
-  dev.off()
-  print(osr_method(st, scenario="baseline", var="cit"))
-  plot.new()
-  dev.off()
-  print(osr_method(st, scenario="baseline", var="othertax"))
-  plot.new()
-  dev.off()
- 
- 
-  cat("##### ", st, " Methods comparison, $ millions, downside scenario\n")
-  print(osr_method(st, scenario="downside", var="osr"))
-  plot.new()
-  dev.off()
-  print(osr_method(st, scenario="downside", var="iit"))
-  plot.new()
-  dev.off()
-  print(osr_method(st, scenario="downside", var="gst"))
-  plot.new()
-  dev.off()
-  print(osr_method(st, scenario="downside", var="cit"))
-  plot.new()
-  dev.off()
-  print(osr_method(st, scenario="downside", var="othertax"))
-  plot.new()
-  dev.off()  
- 
-  cat("##### ", st, " Methods comparison, % of state GDP, baseline scenario\n")
-  print(osr_method_pctgdp(st, scenario="baseline", var="osr"))
-  plot.new()
-  dev.off()
-  print(osr_method_pctgdp(st, scenario="baseline", var="iit"))
-  plot.new()
-  dev.off()
-  print(osr_method_pctgdp(st, scenario="baseline", var="gst"))
-  plot.new()
-  dev.off()
-  print(osr_method_pctgdp(st, scenario="baseline", var="cit"))
-  plot.new()
-  dev.off()
-  print(osr_method_pctgdp(st, scenario="baseline", var="othertax"))
-  plot.new()
-  dev.off()
- 
- 
-  cat("##### ", st, " Methods comparison, % of state GDP, downside scenario\n")
-  print(osr_method_pctgdp(st, scenario="downside", var="osr"))
-  plot.new()
-  dev.off()
-  print(osr_method_pctgdp(st, scenario="downside", var="iit"))
-  plot.new()
-  dev.off()
-  print(osr_method_pctgdp(st, scenario="downside", var="gst"))
-  plot.new()
-  dev.off()
-  print(osr_method_pctgdp(st, scenario="downside", var="cit"))
-  plot.new()
-  dev.off()
-  print(osr_method_pctgdp(st, scenario="downside", var="othertax"))
-  plot.new()
-  dev.off()    
-
- 
-  cat('\n\n')
- 
-  # OSR forecast breakdown, alternative scenarios and methods
-  cat("\n")
-  cat("#### ", st, " Table: Own-source revenue breakdown - pre-Covid\n")
-  print(osr_bkdwn(st, scenario="precovid", method="model"))
-  plot.new()
-  dev.off()
-    print(osr_bkdwn(st, scenario="precovid", method="gapclose"))
-  plot.new()
-  dev.off()
- 
-  cat("\n")
-  cat("#### ", st, " Table: Own-source revenue breakdown - Covid baseline\n")
-  print(osr_bkdwn(st, scenario="baseline", method="model"))
-  plot.new()
-  dev.off()
-  print(osr_bkdwn(st, scenario="baseline", method="gapclose"))
-  plot.new()
-  dev.off()
- 
-  cat("\n")
-  cat("#### ", st, " Table: Own-source revenue breakdown - downside\n")
-  print(osr_bkdwn(st, scenario="downside", method="model"))
-  plot.new()
-  dev.off()
-  print(osr_bkdwn(st, scenario="downside", method="gapclose"))
-  plot.new()
-  dev.off()
-
-  cat("\n")
-  cat("#### ", st, " Table: Own-source revenue breakdown, % change - pre-Covid\n")
-  print(osr_pch(st, scenario="precovid", method="model"))
-  plot.new()
-  dev.off()
-  print(osr_pch(st, scenario="precovid", method="gapclose"))
-  plot.new()
-  dev.off()  
-   
-  cat("\n")
-  cat("#### ", st, " Table: Own-source revenue breakdown, % change - Covid baseline\n")
-  print(osr_pch(st, scenario="baseline", method="model"))
-  plot.new()
-  dev.off()
-  print(osr_pch(st, scenario="baseline", method="gapclose"))
-  plot.new()
-  dev.off()
- 
-  cat("\n")
-  cat("#### ", st, " Table: Own-source revenue breakdown, % change - downside\n")
-  print(osr_pch(st, scenario="downside", method="model"))
-  plot.new()
-  dev.off()
-  print(osr_pch(st, scenario="downside", method="gapclose"))
-  plot.new()
-  dev.off()
- 
-}
-```
-
-
+# State analysis
 
 ## Map of average change in iitax
+
 ```{r include=TRUE}
 # map of $ change of all returns
 theme_map <- function(base_size=9, base_family="") {
@@ -671,21 +487,106 @@ p <- ggplot(data = mdata, aes(x = x, y = y, group = group)) +
   ggtitle("Repeal cap on SALT deduction",
           subtitle="Change in average federal income tax per return")
 
+p
 ggsave(plot=p, filename=here::here("results", "avg_iitax_change_map.png"), width=8, height=6.5, units="in")
 
 # Build a color palette, 5 colors coming from the BuPu color palette"
 # coul <- brewer.pal(5, "BuPu") 
 
 
+```
+
+## States $ billions -- horizontal bars
+
+```{r include=TRUE}
+df <- data3 %>%
+  filter(!stabbr %in% c("US", "other"), stubnum==0, measure=="wtdsum", variable=="iitax") %>%
+  select(stabbr, change)
+
+
+p <- df %>% 
+  mutate(change=-change / 1e9,
+         stname=get_stname(stabbr)) %>%
+  ggplot(aes(y=reorder(stname, change), x=change)) +
+  geom_col(fill="blue", width = 0.7) +
+  scale_y_discrete(name=NULL) +
+  scale_x_continuous(name="Aggregate tax cut, $ billions", labels = scales::dollar_format()) +
+  theme_minimal() +
+  theme(axis.text.y = element_text(hjust = 0)) +
+  ggtitle("Impact of repealing the SALT cap, billions of dollars",
+          subtitle="Compared to current 2021 law")
+p
+ggsave(plot=p, filename=here::here("results", "iitax_change_hbars.png"), width=8, height=6.5, units="in")
+
+# df %>% 
+#   mutate(change=-change) %>%
+#   ggplot(aes(x=reorder(stabbr, change), y=change)) +
+#   geom_col(fill="blue", width = 0.7) +
+#   coord_flip()
+
+
+```
+
+
+## States average $ change per taxpayer -- horizontal bars
+
+
+```{r include=TRUE}
+df <- data3 %>%
+  filter(!stabbr %in% c("US", "other"), stubnum==0, measure=="avgval", variable=="iitax") %>%
+  select(stabbr, change)
+
+
+p <- df %>% 
+  mutate(change=-change,
+         stname=get_stname(stabbr)) %>%
+  ggplot(aes(y=reorder(stname, change), x=change)) +
+  geom_col(fill="blue", width = 0.7) +
+  scale_y_discrete(name=NULL) +
+  scale_x_continuous(name="Average tax reduction per return", labels = scales::dollar_format()) +
+  theme_minimal() +
+  theme(axis.text.y = element_text(hjust = 0)) +
+  ggtitle("Impact of repealing the SALT cap, average reduction per return (denominator=all returns)",
+          subtitle="Compared to current 2021 law")
+p
+ggsave(plot=p, filename=here::here("results", "iitax_avgchange_hbars.png"), width=8, height=6.5, units="in")
+
 
 ```
 
 
 
+# Appendix: State-specific tables
 
-# State analysis (preliminary)
 
-## States ranked by $ billions change in iitax, base to reform
+```{r}
+
+
+state_report <- function(st){
+  stname <- get_stname(st)
+ 
+  cat("\n")
+  cat("## ", stname, " \n")
+ 
+
+  # The economy
+  cat("\n")
+  cat("#### ", st, " GDP growth versus US", "\n")
+  print(gdp_comp_plot(st))
+  plot.new()
+  dev.off()
+ 
+  cat('\n\n')
+ 
+
+}
+```
+
+
+
+# Older stuff
+
+## States ranked by \$ billions change in iitax, base to reform
 
 ```{r include=TRUE}
 allsums %>%
@@ -705,7 +606,6 @@ allsums %>%
   
 
 ```
-
 
 ## States ranked by % change in iitax, base to reform
 
@@ -728,10 +628,10 @@ allsums %>%
 
 ```
 
-
 # QC analysis starts here
 
 ## Records with tax increases, weighted by default puf weights
+
 ```{r include=TRUE}
 # do any records have tax increases
 increases <- stack %>%
@@ -751,25 +651,20 @@ increases %>%
   
 ```
 
-
-
-
 ## Compare base vs. reform in 2021 with puf weights and with reweights
 
 The following tables show iitax, nationally, 2017 filers only, under base and reform, with default puf weights and with reweighted values, followed by the same kind of information for the taxes-paid deduction.
 
 Note that:
 
-+   Reweighted is about $11b more expensive than puf weights
-+   Essentially all of the difference is for millionaires. See the earlier discussion of millionaires - it seems pretty clear that puf weights have too little taxes paid deductions for millionaires.
-
+-   Reweighted is about \$11b more expensive than puf weights
+-   Essentially all of the difference is for millionaires. See the earlier discussion of millionaires - it seems pretty clear that puf weights have too little taxes paid deductions for millionaires.
 
 ### iitax results with puf weights and then with reweights
 
-\   
-Here are the puf-weighted values
-\   
-\   
+ \
+Here are the puf-weighted values  \
+ 
 
 ```{r include=TRUE}
 
@@ -779,12 +674,9 @@ vartab(tabdata, "iitax: SALT cap repeal vs. 2021 current law, 2021 income levels
 
 ```
 
-
-\   
-And here are the reweighted values:
-\   
-\   
-
+ \
+And here are the reweighted values:  \
+ 
 
 ```{r include=TRUE}
 tabdata <- getvar(wtype="REWT2021", stabbr="US", variable="iitax")
@@ -793,13 +685,12 @@ vartab(tabdata, "iitax:  SALT cap repeal vs. 2021 current law, 2021 income level
 
 ```
 
-
 ### Taxes paid deduction with puf weights and then with reweights
 
-\    
-Here are the puf-weighted values  
-\   
-\   
+ \
+Here are the puf-weighted values\
+ \
+ 
 
 ```{r include=TRUE}
 
@@ -809,13 +700,11 @@ vartab(tabdata, "Taxes-paid deduction: SALT cap repeal vs. 2021 current law, 202
 
 ```
 
-\     
-\   
-Here are the reweighted values.
-\   
-\   
+ \
+ \
+Here are the reweighted values.  \
+ 
 
-    
 ```{r include=TRUE}
 
 tabdata <- getvar(wtype="REWT2021", stabbr="US", variable="salt")
@@ -824,12 +713,7 @@ vartab(tabdata, "Taxes-paid deduction: SALT cap repeal vs. 2021 current law, 202
 
 ```
 
-
-
-
-
 ## Why do MS and KY have such large percentage changes under either set of national weights?
-
 
 ### Kentucky iitax then salt, with reweights
 
@@ -849,7 +733,6 @@ vartab(tabdata,
 
 ```
 
-
 ### Mississippi iitax then salt, with reweights
 
 ```{r include=TRUE}
@@ -862,7 +745,6 @@ vartab(tabdata,
 
 ```
 
-
 ```{r include=TRUE}
 tabdata <- getvar(wtype="REWT2021", stabbr="MS", variable="salt")
 vartab(tabdata, 
@@ -870,7 +752,6 @@ vartab(tabdata,
        dollar_digits=3)
 
 ```
-
 
 ### For comparison: New York iitax then salt, with reweights
 
@@ -882,7 +763,6 @@ vartab(tabdata,
 
 ```
 
-
 ```{r include=TRUE}
 tabdata <- getvar(wtype="REWT2021", stabbr="NY", variable="salt")
 vartab(tabdata, 
@@ -890,98 +770,124 @@ vartab(tabdata,
        dollar_digits=3)
 ```
 
-
-
-
 # Status and key issues:
 
-+   Things are set up in python to rerun baseline and reform if needed. This would only be necessary if puf.csv changes (e.g., if duplicate records are addressed), if Tax-Calculator changes, or the reform file changes. All seem unlikely.
-+   Changes to national or state weights don't require rerunning baseline or reform in Tax-Calculator.
-+   Initial focus has been on looking for anomalies and pumping out a few basic numbers.
-+   The key data-quality and calculation issues appear to be:
-    +   National:
-        +   SALT data
-            +   What should the amount and distribution across agi ranges of the uncapped taxes-paid deduction look like. It seems pretty clear that the default puf must have too little of the deduction and way too little of it among millionaires. But why does the default come so close to TPC? 
-            +   I hope Frank S. has some useful comments on that. Maybe they have too little SALT deduction, also. I suspect that.
-            +   One way to investigate a little bit further is to see how the puf national impact changes when moving from 2020 to 2021 (our year). If the puf number goes up a lot from 2020 to 2021, then perhaps the TPC number would go up a lot too, bringing it closer to the $90 billion I get with the reweighted puf. I calculated salt-cap national repeal costs in 2020 and 2021 (in python, not in this R program) using all defaults for both years and got the following:
-          
-                  Cost 2020($B) = -76.988183
+-   Things are set up in python to rerun baseline and reform if needed. This would only be necessary if puf.csv changes (e.g., if duplicate records are addressed), if Tax-Calculator changes, or the reform file changes. All seem unlikely.
 
-                  Cost 2021($B) = -80.178242  (same as Matt's number)
-          
-                  $b change cost = -3.19
-          
-                  % change cost = 4.14
+-   Changes to national or state weights don't require rerunning baseline or reform in Tax-Calculator.
 
-                Unfortunately, this suggests that TPC's estimate won't grow a lot from 2020 to 2021 -- maybe only to $80 billion -- and will remain well below the $90 billion estimate with my reweights. So I think either (1) TPC has too little SALT-qualifying deduction, (2) I have too much with the reweights, or (3) perhaps (far less likely) there is something not right about how Tax-Calculator is calculating it. It is hard for me to see how I can have significantly too much salt deduction given that I hit 2017 on the head, and the growth to 2021 seems plausible.
-              
-              +   Is it possible that c18300 is not the right variable to target? According to the 2011 SOI puf documentation, the important variables are e18400 (income or general sales tax), e18500 (real estate taxes), and e18600 (other taxes). It does not have e18300, instead c18300 is calculated and put on puf.csv by TaxData. Per [Tax-Calculator](http://taxcalc.pslmodels.org/guide/output_vars.html#c18300), c18300 is "Sch A: State and local taxes plus real estate taxes deducted (component of pre-limitation c21060 total)".  It certainly sounds right.
+-   Initial focus has been on looking for anomalies and pumping out a few basic numbers.
 
-              +   I calculated 2011 law in 2011 using puf.csv and got $473.675 b as the weighted sum for c18300
-              +   According to the relevant [IRS table](https://www.irs.gov/pub/irs-soi/11in21id.xls) the total taxes paid deduction on taxable returns was $434.8 billion (this is the concept I target), plus another $30.3 billion on nontaxable returns (both in column BQ). That is close enough to the calculated PUF value to make me think that c18300 really is the right variable.
-            +   So if c18300 is the right variable, and if the reweighted values in 2017 are accurate, and if the 2017 to 2021 growfactors are reasonable, it is hard to see how the data file for 2021 can be far off. And I have confidence in Tax-Calculator. That leads me to think that $90 billion is plausible and that TPC may be too low.
+-   The key data-quality and calculation issues appear to be:
 
-        +   Tax-Calculator produces tax increases for some records when the SALT cap is repealed. It's not a lot of records or a lot of money but it seems hard to understand. Would like to understand.   
-        
-           
-    +   State: Why do KY and MS have such large percentage tax cuts from SALT-cap repeal? 
-        +   I looked at the QC reports for these states and it looks like I came quite close to the important Historical Table 2 targets. 
-        +   Could the targets themselves be bad? I need to investige more. If that turns out to be true, I may want to rerun the state weighting.
-        +   However, I just stumbled on what I think is the reason. Toward the end there are summary reports for KY, MS, and, for comparison, NY.
-            +   NY has larger % tax cuts than KY and MS in the high income ranges as we'd expect.
-            +   But KY and MS have a lot of people who have negative baseline tax (presumably EITC and other refundable credits). As a result, for their totals, we count their tax reductions across all taxpayers as a percentage of their baseline tax across all taxpayers - with that baseline reduced by a lot of credits.
-            +   It may be that their liability for negative taxpayers is a far larger share of total net liability than it is in NY and a lot of other states, in part because the other states have more high-liability taxpayers, and so the overall average is skewed in some low-liability states.
-            +   If this proves to be the primary explanation, then there may be nothing wrong at all. It's just that we have a presentation problem and will have to figure out a good way to present this. Maybe one way to present will be to average per-return changes.
-            
-    
-Details below support the points above.    
+    -   National:
 
+        -   SALT data
+
+            -   What should the amount and distribution across agi ranges of the uncapped taxes-paid deduction look like. It seems pretty clear that the default puf must have too little of the deduction and way too little of it among millionaires. But why does the default come so close to TPC?
+
+            -   I hope Frank S. has some useful comments on that. Maybe they have too little SALT deduction, also. I suspect that.
+
+            -   One way to investigate a little bit further is to see how the puf national impact changes when moving from 2020 to 2021 (our year). If the puf number goes up a lot from 2020 to 2021, then perhaps the TPC number would go up a lot too, bringing it closer to the \$90 billion I get with the reweighted puf. I calculated salt-cap national repeal costs in 2020 and 2021 (in python, not in this R program) using all defaults for both years and got the following:
+
+                Cost 2020(\$B) = -76.988183
+
+                Cost 2021(\$B) = -80.178242 (same as Matt's number)
+
+                \$b change cost = -3.19
+
+                \% change cost = 4.14
+
+                Unfortunately, this suggests that TPC's estimate won't grow a lot from 2020 to 2021 -- maybe only to \$80 billion -- and will remain well below the \$90 billion estimate with my reweights. So I think either (1) TPC has too little SALT-qualifying deduction, (2) I have too much with the reweights, or (3) perhaps (far less likely) there is something not right about how Tax-Calculator is calculating it. It is hard for me to see how I can have significantly too much salt deduction given that I hit 2017 on the head, and the growth to 2021 seems plausible.
+
+            -   Is it possible that c18300 is not the right variable to target? According to the 2011 SOI puf documentation, the important variables are e18400 (income or general sales tax), e18500 (real estate taxes), and e18600 (other taxes). It does not have e18300, instead c18300 is calculated and put on puf.csv by TaxData. Per [Tax-Calculator](http://taxcalc.pslmodels.org/guide/output_vars.html#c18300), c18300 is "Sch A: State and local taxes plus real estate taxes deducted (component of pre-limitation c21060 total)". It certainly sounds right.
+
+            -   I calculated 2011 law in 2011 using puf.csv and got \$473.675 b as the weighted sum for c18300
+
+            -   According to the relevant [IRS table](https://www.irs.gov/pub/irs-soi/11in21id.xls) the total taxes paid deduction on taxable returns was \$434.8 billion (this is the concept I target), plus another \$30.3 billion on nontaxable returns (both in column BQ). That is close enough to the calculated PUF value to make me think that c18300 really is the right variable.
+
+            -   So if c18300 is the right variable, and if the reweighted values in 2017 are accurate, and if the 2017 to 2021 growfactors are reasonable, it is hard to see how the data file for 2021 can be far off. And I have confidence in Tax-Calculator. That leads me to think that \$90 billion is plausible and that TPC may be too low.
+
+        -   Tax-Calculator produces tax increases for some records when the SALT cap is repealed. It's not a lot of records or a lot of money but it seems hard to understand. Would like to understand.
+
+    -   State: Why do KY and MS have such large percentage tax cuts from SALT-cap repeal?
+
+        -   I looked at the QC reports for these states and it looks like I came quite close to the important Historical Table 2 targets.
+
+        -   Could the targets themselves be bad? I need to investige more. If that turns out to be true, I may want to rerun the state weighting.
+
+        -   However, I just stumbled on what I think is the reason. Toward the end there are summary reports for KY, MS, and, for comparison, NY.
+
+            -   NY has larger % tax cuts than KY and MS in the high income ranges as we'd expect.
+            -   But KY and MS have a lot of people who have negative baseline tax (presumably EITC and other refundable credits). As a result, for their totals, we count their tax reductions across all taxpayers as a percentage of their baseline tax across all taxpayers - with that baseline reduced by a lot of credits.
+            -   It may be that their liability for negative taxpayers is a far larger share of total net liability than it is in NY and a lot of other states, in part because the other states have more high-liability taxpayers, and so the overall average is skewed in some low-liability states.
+            -   If this proves to be the primary explanation, then there may be nothing wrong at all. It's just that we have a presentation problem and will have to figure out a good way to present this. Maybe one way to present will be to average per-return changes.
+
+Details below support the points above.
 
 # Methodology and data notes
 
 ## Constructing 2021 data for the nation
 
-+   **Start with official 2021-07-20 puf.csv**
-+   Per the PSL Demo Day discussion, create 2017 national file:
-    +   Extrapolate to 2017 using all defaults (growfactors.csv, puf_weights.csv, puf_ratios.csv)
-    +   Calculate 2017 agi, determine 2017 filer status
-    +   Reweight filers to approximate IRS national values for 2017 by agi range (including esp. c18300, taxes paid deduction)
-    +   Note that WITHOUT reweighting, puf.csv in 2017 with defaults:
-        +   has about $34b (5.5%) too little taxes paid deduction
-        +   $30b of that is for agi ten-millionaires (64% below what IRS shows)
-        +   another ~$10b is for millionaires in the $1m-10m range, with non-millionaires somewhat above IRS
-    +   As reweighted, 2017 file matches IRS values within small tolerances
-+   **Move 2017 file to 2021**
-    +   Create records object from the reweighted file with start_year=2017, adjust_ratios=None (because I believe reweighting addresses interest income)
-    +   Advance to 2017, which means it uses default puf growfactors for per-return values, but not puf_ratios. (There is a slight oddity: I used puf_ratios to move from 2011 to 2017, but not 2017 to 2021. This results in minimal differences vs  no puf_ratios at all and if I were redoing it I probably would drop puf_ratios altogether.)
-        +   The default growfactors I looked at seem very plausible.
-        +   Taxes-paid components are grown by ATXPY. Its total growth from 2017 to 2021 is about 14.4% and its cagr is 3.48%. Looks reasonable.
-    +   Note that using Tax-Calculator to advance overwrites my 2017 weights with those in puf_weights.csv, but that's ok - I replace them later.
-+   **Sanity checks to this point**
-    +   I verified by spot-checking individual records that SALT components (e18400, etc.) grow by 14.4%.
-    +   Using the method above (default growfactors and weights, no puf_ratios) produces a SALT deduction for all millionaires in 2021, with the SALT cap removed, of $110.7 billion. The value for millionaire filers in 2017 (also uncapped) was $127.7 billion, per note to Frank Sammartino. So $110.7 billion seems way too small and different weights are needed. (I can't easily compare all records to IRS total because I would have to drop out nonfilers.)
-+   **National weights for 2021**
-    +   Get puf_weights for 2017 and 2021 (WT2017, WT2021)
-    +   Retrieve and merge in my 2017 filer weights and a filer indicator
-    +   Create REWT2017 with WT2017 for 2017 nonfilers and my 2017 weight for 2017 filers
-    +   Create REWT2021 as follows:
-        +   2017 nonfilers: use WT2021 (their TaxData weight)
-        +   2017 filers: REWT2017 + 4.8%, the growth the sum of TaxData weights for the 2017 nonfilers -- this is a 1.18% cagr for the number of filers, which I think (??) is reasonable
-            +   IRS projected growth in returns 2017-2021 was 5.38% [per Tax-Calculator](https://github.com/PSLmodels/taxdata/blob/master/puf_stage1/IRS_return_projection.csv) so this seems reasonable (within 0.6% over 4 years)
-            +   IRS number of returns in 2021 is 161,707,000
-            +   When I use these weights to calculate weighted number of 2017 filers in 2021, I get 160,227,908, 0.9% lower than IRS
-            +   puf weights give 151,156,078, 6.5% lower than IRS
-            +   a better comparison might be filers under 2021 rules...
+-   **Start with official 2021-07-20 puf.csv**
 
-        
+-   Per the PSL Demo Day discussion, create 2017 national file:
+
+    -   Extrapolate to 2017 using all defaults (growfactors.csv, puf_weights.csv, puf_ratios.csv)
+
+    -   Calculate 2017 agi, determine 2017 filer status
+
+    -   Reweight filers to approximate IRS national values for 2017 by agi range (including esp. c18300, taxes paid deduction)
+
+    -   Note that WITHOUT reweighting, puf.csv in 2017 with defaults:
+
+        -   has about \$34b (5.5%) too little taxes paid deduction
+        -   \$30b of that is for agi ten-millionaires (64% below what IRS shows)
+        -   another \~\$10b is for millionaires in the \$1m-10m range, with non-millionaires somewhat above IRS
+
+    -   As reweighted, 2017 file matches IRS values within small tolerances
+
+-   **Move 2017 file to 2021**
+
+    -   Create records object from the reweighted file with start_year=2017, adjust_ratios=None (because I believe reweighting addresses interest income)
+
+    -   Advance to 2017, which means it uses default puf growfactors for per-return values, but not puf_ratios. (There is a slight oddity: I used puf_ratios to move from 2011 to 2017, but not 2017 to 2021. This results in minimal differences vs no puf_ratios at all and if I were redoing it I probably would drop puf_ratios altogether.)
+
+        -   The default growfactors I looked at seem very plausible.
+        -   Taxes-paid components are grown by ATXPY. Its total growth from 2017 to 2021 is about 14.4% and its cagr is 3.48%. Looks reasonable.
+
+    -   Note that using Tax-Calculator to advance overwrites my 2017 weights with those in puf_weights.csv, but that's ok - I replace them later.
+
+-   **Sanity checks to this point**
+
+    -   I verified by spot-checking individual records that SALT components (e18400, etc.) grow by 14.4%.
+    -   Using the method above (default growfactors and weights, no puf_ratios) produces a SALT deduction for all millionaires in 2021, with the SALT cap removed, of \$110.7 billion. The value for millionaire filers in 2017 (also uncapped) was \$127.7 billion, per note to Frank Sammartino. So \$110.7 billion seems way too small and different weights are needed. (I can't easily compare all records to IRS total because I would have to drop out nonfilers.)
+
+-   **National weights for 2021**
+
+    -   Get puf_weights for 2017 and 2021 (WT2017, WT2021)
+
+    -   Retrieve and merge in my 2017 filer weights and a filer indicator
+
+    -   Create REWT2017 with WT2017 for 2017 nonfilers and my 2017 weight for 2017 filers
+
+    -   Create REWT2021 as follows:
+
+        -   2017 nonfilers: use WT2021 (their TaxData weight)
+
+        -   2017 filers: REWT2017 + 4.8%, the growth the sum of TaxData weights for the 2017 nonfilers -- this is a 1.18% cagr for the number of filers, which I think (??) is reasonable
+
+            -   IRS projected growth in returns 2017-2021 was 5.38% [per Tax-Calculator](https://github.com/PSLmodels/taxdata/blob/master/puf_stage1/IRS_return_projection.csv) so this seems reasonable (within 0.6% over 4 years)
+            -   IRS number of returns in 2021 is 161,707,000
+            -   When I use these weights to calculate weighted number of 2017 filers in 2021, I get 160,227,908, 0.9% lower than IRS
+            -   puf weights give 151,156,078, 6.5% lower than IRS
+            -   a better comparison might be filers under 2021 rules...
+
 ## State weights
 
-I apply my state shares for each 2017 filer record to the 2021 national weight for those records.
-Have not yet addressed 2017 nonfilers. For now, they drop out of the analysis.
-
+I apply my state shares for each 2017 filer record to the 2021 national weight for those records. Have not yet addressed 2017 nonfilers. For now, they drop out of the analysis.
 
 ## Some links to estimates
 
-+   [TPC 2020 repeal $76b](https://www.taxpolicycenter.org/taxvox/tpc-analyzes-five-ways-replace-salt-deduction-cap)
-+   [also this](https://www.taxpolicycenter.org/publications/alternatives-tcja-limit-state-and-local-tax-deduction/full)
-
+-   [TPC 2020 repeal \$76b](https://www.taxpolicycenter.org/taxvox/tpc-analyzes-five-ways-replace-salt-deduction-cap)
+-   [also this](https://www.taxpolicycenter.org/publications/alternatives-tcja-limit-state-and-local-tax-deduction/full)
