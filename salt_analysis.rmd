@@ -26,6 +26,24 @@ options(width = 150)
 ```
 
 
+```{r git_info}
+# link to github
+# see DONOTCOMMIT.txt for my personal access token
+
+# • To create a personal access token, call `create_github_token()`
+# • To store a token for current and future use, call `gitcreds::gitcreds_set()`
+# ℹ Read more in the 'Managing Git(Hub) Credentials' article:
+#   https://usethis.r-lib.org/articles/articles/git-credentials.html
+
+# usethis::gh_token_help()
+# gitcreds::gitcreds_set()
+
+# then, IF NOT ALREADY DONE, create a repo on github:
+# usethis::use_github()
+
+```
+
+
 ```{r libraries}
 library(tidyverse)
 options(tibble.print_max = 80, tibble.print_min = 80) # if more than 60 rows, print 60 - enough for states
@@ -33,6 +51,7 @@ library(arrow)
 library(kableExtra)
 library(btools)
 library(gt)
+library(knitr)
 
 library(maps)
 # https://cran.r-project.org/web/packages/usmap/vignettes/mapping.html
@@ -63,28 +82,19 @@ library(RColorBrewer)
 ```
 
 
-```{r git_info}
-# link to github
-# see DONOTCOMMIT.txt for my personal access token
-
-# • To create a personal access token, call `create_github_token()`
-# • To store a token for current and future use, call `gitcreds::gitcreds_set()`
-# ℹ Read more in the 'Managing Git(Hub) Credentials' article:
-#   https://usethis.r-lib.org/articles/articles/git-credentials.html
-
-# usethis::gh_token_help()
-# gitcreds::gitcreds_set()
-
-# then, IF NOT ALREADY DONE, create a repo on github:
-# usethis::use_github()
-
-```
-
 
 ```{r locations}
-SCRATCHDIR <- '/media/don/scratch/'
-DATADIR <- '/media/don/pufanalysis_output/data/'
-WEIGHTDIR <- '/media/don/pufanalysis_output/weights/'
+
+os <- "win"  # win or linux
+
+if(os=="win"){
+  SCRATCHDIR <- r"(E:\linux\scratch\)"
+  WEIGHTDIR <- r"(E:\linux\pufanalysis_output\weights\)"
+} else if(os=="linux"){
+  SCRATCHDIR <- '/media/don/scratch/'
+  DATADIR <- '/media/don/pufanalysis_output/data/'
+  WEIGHTDIR <- '/media/don/pufanalysis_output/weights/'
+}
 
 
 ```
@@ -111,6 +121,16 @@ agi_stubs <- tribble(~agicut, ~agilabel,
 # agi <- c(-10, 0, 1, 2, 24999, 25000, 25001, 199999, 200000, 200001, 2e6)
 # tibble(agi=agi) %>% 
 #   mutate(stub=cut(agi, agi_stubs$agicut, labels=agi_stubs$agilabel[-1], include.lowest = TRUE, right=FALSE))
+
+```
+
+
+```{r utility_functions}
+
+get_stname <- function(stabbr){
+  state.name[state.abb==stabbr]
+}
+
 
 ```
 
@@ -181,7 +201,6 @@ basedf <- read_parquet(paste0(SCRATCHDIR, "base2021.parquet"),
 reformdf <- read_parquet(paste0(SCRATCHDIR, "reform2021.parquet"),
                        col_select = all_of(vars)) %>%
   left_join(basedf %>% select(RECID, agibase), by="RECID") %>% mutate(type="reform")
-
 
 
 ```
@@ -315,8 +334,7 @@ vartab <- function(tabdata, title, dollar_digits=1){
 
 ```{r}
 str(knitr::opts_chunk$get()) # default chuck options
-opts_current$get()
-opts_chunk$get
+# opts_current$get()
 allsums  # "type"     "wtype"    "stubnum"  "stub"     "stabbr"   "variable" "value"  
 count(allsums, variable)
 
@@ -371,6 +389,195 @@ vartab(df, title="abvc", dollar_digits=1)
 
 
 ```
+
+
+```{r}
+
+
+state_report <- function(st){
+  stname <- get_stname(st)
+ 
+  cat("\n")
+  cat("## ", stname, " \n")
+ 
+  cat("\n")
+  cat("### ", stname, " History \n")  #  {.tabset}
+
+  # The economy
+  cat("\n")
+  cat("#### ", st, " GDP growth versus US", "\n")
+  print(gdp_comp_plot(st))
+  plot.new()
+  dev.off()
+ 
+  cat("\n")
+  cat("#### ", st, " GDP growth minus United States GDP growth \n")
+  print(gdp_diff_plot(st))
+  plot.new()
+  dev.off()
+  cat('\n\n')
+ 
+  cat("\n")
+  cat("#### ", st, " State GDP growth and own-source revenue growth \n")
+  print(gdp_osr_plot(st))
+  plot.new()
+  dev.off()
+  cat('\n\n')
+ 
+  cat("\n")
+  cat("####  ", st, " State income tax, state GDP growth, and lagged national capital gains\n")
+  print(iit_gdpcg_plot(st))
+  plot.new()
+  dev.off()
+  cat('\n\n')
+ 
+   
+  cat("\n")
+  cat("### ", stname, " Forecasts \n")  # {.tabset}
+ 
+  # OSR forecasts
+  cat("\n")
+  cat("#### ", st, " Own-source revenue scenarios\n")
+  cat("##### ", st, " Method: Simple model\n")
+  print(osr_scen(st, method="model"))
+  plot.new()
+  dev.off()
+  cat("##### ", st, " Method: Close gap between revenue as % of state GDP, and 2019 value\n")
+  print(osr_scen(st, method="gapclose"))
+  plot.new()
+  dev.off()
+ 
+  cat("##### ", st, " Methods comparison, $ millions, baseline scenario\n")
+  print(osr_method(st, scenario="baseline", var="osr"))
+  plot.new()
+  dev.off()
+  print(osr_method(st, scenario="baseline", var="iit"))
+  plot.new()
+  dev.off()
+  print(osr_method(st, scenario="baseline", var="gst"))
+  plot.new()
+  dev.off()
+  print(osr_method(st, scenario="baseline", var="cit"))
+  plot.new()
+  dev.off()
+  print(osr_method(st, scenario="baseline", var="othertax"))
+  plot.new()
+  dev.off()
+ 
+ 
+  cat("##### ", st, " Methods comparison, $ millions, downside scenario\n")
+  print(osr_method(st, scenario="downside", var="osr"))
+  plot.new()
+  dev.off()
+  print(osr_method(st, scenario="downside", var="iit"))
+  plot.new()
+  dev.off()
+  print(osr_method(st, scenario="downside", var="gst"))
+  plot.new()
+  dev.off()
+  print(osr_method(st, scenario="downside", var="cit"))
+  plot.new()
+  dev.off()
+  print(osr_method(st, scenario="downside", var="othertax"))
+  plot.new()
+  dev.off()  
+ 
+  cat("##### ", st, " Methods comparison, % of state GDP, baseline scenario\n")
+  print(osr_method_pctgdp(st, scenario="baseline", var="osr"))
+  plot.new()
+  dev.off()
+  print(osr_method_pctgdp(st, scenario="baseline", var="iit"))
+  plot.new()
+  dev.off()
+  print(osr_method_pctgdp(st, scenario="baseline", var="gst"))
+  plot.new()
+  dev.off()
+  print(osr_method_pctgdp(st, scenario="baseline", var="cit"))
+  plot.new()
+  dev.off()
+  print(osr_method_pctgdp(st, scenario="baseline", var="othertax"))
+  plot.new()
+  dev.off()
+ 
+ 
+  cat("##### ", st, " Methods comparison, % of state GDP, downside scenario\n")
+  print(osr_method_pctgdp(st, scenario="downside", var="osr"))
+  plot.new()
+  dev.off()
+  print(osr_method_pctgdp(st, scenario="downside", var="iit"))
+  plot.new()
+  dev.off()
+  print(osr_method_pctgdp(st, scenario="downside", var="gst"))
+  plot.new()
+  dev.off()
+  print(osr_method_pctgdp(st, scenario="downside", var="cit"))
+  plot.new()
+  dev.off()
+  print(osr_method_pctgdp(st, scenario="downside", var="othertax"))
+  plot.new()
+  dev.off()    
+
+ 
+  cat('\n\n')
+ 
+  # OSR forecast breakdown, alternative scenarios and methods
+  cat("\n")
+  cat("#### ", st, " Table: Own-source revenue breakdown - pre-Covid\n")
+  print(osr_bkdwn(st, scenario="precovid", method="model"))
+  plot.new()
+  dev.off()
+    print(osr_bkdwn(st, scenario="precovid", method="gapclose"))
+  plot.new()
+  dev.off()
+ 
+  cat("\n")
+  cat("#### ", st, " Table: Own-source revenue breakdown - Covid baseline\n")
+  print(osr_bkdwn(st, scenario="baseline", method="model"))
+  plot.new()
+  dev.off()
+  print(osr_bkdwn(st, scenario="baseline", method="gapclose"))
+  plot.new()
+  dev.off()
+ 
+  cat("\n")
+  cat("#### ", st, " Table: Own-source revenue breakdown - downside\n")
+  print(osr_bkdwn(st, scenario="downside", method="model"))
+  plot.new()
+  dev.off()
+  print(osr_bkdwn(st, scenario="downside", method="gapclose"))
+  plot.new()
+  dev.off()
+
+  cat("\n")
+  cat("#### ", st, " Table: Own-source revenue breakdown, % change - pre-Covid\n")
+  print(osr_pch(st, scenario="precovid", method="model"))
+  plot.new()
+  dev.off()
+  print(osr_pch(st, scenario="precovid", method="gapclose"))
+  plot.new()
+  dev.off()  
+   
+  cat("\n")
+  cat("#### ", st, " Table: Own-source revenue breakdown, % change - Covid baseline\n")
+  print(osr_pch(st, scenario="baseline", method="model"))
+  plot.new()
+  dev.off()
+  print(osr_pch(st, scenario="baseline", method="gapclose"))
+  plot.new()
+  dev.off()
+ 
+  cat("\n")
+  cat("#### ", st, " Table: Own-source revenue breakdown, % change - downside\n")
+  print(osr_pch(st, scenario="downside", method="model"))
+  plot.new()
+  dev.off()
+  print(osr_pch(st, scenario="downside", method="gapclose"))
+  plot.new()
+  dev.off()
+ 
+}
+```
+
 
 
 ## Map of average change in iitax
