@@ -5,6 +5,7 @@
 *.html
 *.ods*
 *.pdf
+*.png
 *.xls*
 *.xls
 ignore/
