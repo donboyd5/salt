@@ -1,5 +1,5 @@
 ---
-title: "State impact of SALT-cap repeal"
+title: "State impact of SALT-cap reform"
 author: "Don Boyd and Matt Jensen"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output:
@@ -109,7 +109,7 @@ runtypes <- c("repeal", "cap72500", "cap80000")
 reform_files <- c("repeal_2021.parquet", "cap72500_2021.parquet", "cap80000_2021.parquet")
 reform_names <- c("SALT cap repealed", "SALT cap raised to $72,500", "SALT cap raised to $80,000")
 
-runnum <- 1
+runnum <- 3
 runtype <- runtypes[runnum]
 reform_file <- reform_files[runnum]
 reform_name <- reform_names[runnum]
@@ -1617,7 +1617,7 @@ statetab1 <- function(stabbr){
   tabdata %>%
     gt()  %>%  
     tab_header(
-      title = paste0("Total impact of SALT-cap repeal in $ billions: ", stname),
+      title = paste0("Total impact of SALT-cap reform in $ billions: ", stname),
       subtitle = "Compared to current 2021 law"
     ) %>%
    cols_label(
@@ -1904,7 +1904,7 @@ vartab(tabdata,
 tabdata <- getvar(wtype="REWT2021", stabbr="MS", variable="iitax")
 title <- paste0("iitax: ", reform_name, " vs. 2021 current law, 2021 income levels, reweights")
 vartab(tabdata, 
-       "iitax: SALT cap repeal vs. 2021 current law, 2021 income levels, reweights",
+       title,
        dollar_digits=3)
 
 ```
