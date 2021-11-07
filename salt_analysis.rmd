@@ -225,7 +225,8 @@ stack <- bind_rows(basedf, reformdf) %>%
                   agi_stubs$agicut, 
                   labels=agi_stubs$agilabel[-1], include.lowest = TRUE, right=FALSE),
          stubnum=as.integer(stub),
-         xpinc=expanded_income - benefit_value_total) %>%
+         xpinc=expanded_income - benefit_value_total,
+         dispinc=xpinc - combined) %>%
   select(-expanded_income, -benefit_value_total)
 
 glimpse(stack)  
@@ -259,6 +260,7 @@ wstack <- stack %>%
                 list(numret=~.x,
                      agi=~.x * c00100,
                      xpinc=~.x * xpinc,
+                     dispinc=~.x * dispinc,
                      iitax=~.x * iitax,
                      salt=~.x * c18300))) %>%
   select(-c(US, all_of(geos)))
@@ -269,7 +271,7 @@ ns(wstack)
 wsums <- wstack %>%
   filter(filer2017) %>%
   select(-c(RECID, filer2017, numret, 
-            c00100, e00200, c18300, c04470, standard, combined, iitax, agibase, xpinc)) %>%
+            c00100, e00200, c18300, c04470, standard, combined, iitax, agibase, xpinc, dispinc)) %>%
   group_by(type, wtype, taxstatus, stubnum, stub) %>%
   summarise(across(.cols=everything(), sum), .groups="drop")
 glimpse(wsums) # 36 rows type 2, wtype 2, stubs 9, each col is weighted value for variable, state
@@ -449,8 +451,8 @@ data3 <- data2 %>%
             by=c("wtype", "taxstatus", "stubnum", "stub", "variable", "measure"))
 
 
-data3 %>%
-  filter(stabbr=="MS", stubnum==0, variable=="iitax")
+data3 %>% filter(stabbr=="MS", stubnum==0, variable=="iitax")
+data3 %>% filter(stabbr=="MS", stubnum==0, variable=="dispinc")
 
 
 ```
@@ -461,7 +463,7 @@ data3 %>%
 ```{r data}
 
 data4 <- data3 %>%
-  filter(measure %in% c("wtdsum", "avgval"), variable %in% c("iitax", "xpincxreform")) %>%
+  filter(measure %in% c("wtdsum", "avgval"), variable %in% c("iitax", "dispinc")) %>%
   select(variable, stabbr, taxstatus, stubnum, stub, measure, base, reform, change, pchange) %>%
   pivot_longer(-c(stabbr, taxstatus, stubnum, stub, variable, measure)) %>%
   unite("name", c(measure, name)) %>%
@@ -471,7 +473,7 @@ data4 <- data3 %>%
   select(variable, stabbr, taxstatus, stubnum, stub, starts_with("wtdsum"), junk, starts_with("avg"))
 
 data4 %>% filter(taxstatus=="taxpayer", 
-                 variable=="xpincxreform", 
+                 variable=="dispinc", 
                  stabbr %in% c("NY", "TX"), stubnum %in% c(0, 9)) %>%
   select(-c(taxstatus, variable))
 
@@ -481,6 +483,14 @@ stiitax <- data4 %>%
   select(-variable)
 
 usiitax <- stiitax %>%
+  filter(stabbr=="US") %>%
+  select(taxstatus, stubnum, stub, starts_with("wtdsum"), junk, starts_with("avg"))
+
+stdispinc <- data4 %>%
+  filter(variable=="dispinc") %>%
+  select(-variable)
+
+usdispinc <- stdispinc %>%
   filter(stabbr=="US") %>%
   select(taxstatus, stubnum, stub, starts_with("wtdsum"), junk, starts_with("avg"))
 
@@ -501,6 +511,18 @@ stiitaxxpinc <- stiitax %>%
 usiitaxxpinc <- stiitaxxpinc %>%
   filter(stabbr=="US") %>%
   select(taxstatus, stubnum, stub, starts_with("wtdsum"), junk, starts_with("avg"))
+
+
+# bring in dispinc
+stiitaxdispinc <- stiitax %>%
+  left_join(stdispinc %>%
+              select(stabbr, taxstatus, stubnum, stub, avgdispinc_pchange=avgval_pchange),
+            by = c("stabbr", "taxstatus", "stubnum", "stub"))
+
+usiitaxdispinc <- stiitaxdispinc %>%
+  filter(stabbr=="US") %>%
+  select(taxstatus, stubnum, stub, starts_with("wtdsum"), junk, starts_with("avg"))
+
 
 
 # we need similar tables for 
@@ -834,6 +856,81 @@ write_csv(tabdata, here::here("results", "USImpact_averages_xpinc_table_data.csv
 
 ```
 
+### U.S. Table, $ averages, including % change disposable income
+```{r include=TRUE}
+
+tabdata <- usiitaxdispinc %>%
+  filter(taxstatus=="taxpayer")  %>%
+  mutate(stub=ifelse(stub=="Total", "Overall average", stub)) %>%
+  select(stubnum, stub, starts_with("avg"))
+
+dcols <- c("avgval_base", "avgval_reform", "avgval_change")
+pcols <- c("avgval_pchange", "avgdispinc_pchange")
+
+tab <- tabdata %>%
+  select(-stubnum) %>%
+  gt()  %>%  
+  tab_header(
+    title = html("Average tax change per taxpayer"),
+    subtitle = "SALT-cap repeal compared to current 2021 law"
+  ) %>%
+  cols_label(
+      stub = "",
+      avgval_base = "2021 current law",
+      avgval_reform = "SALT-cap repeal",
+      avgval_change = html("$ change versus<br>current law"),
+      avgval_pchange = html("% change versus<br>current law"),
+      avgdispinc_pchange = html("% change in disposable income")
+    ) %>%
+  
+  fmt_currency(
+    columns = all_of(dcols),
+    rows=1,
+    decimals = 0,
+    scale_by = 1,
+    suffixing = FALSE
+  )   %>%
+  fmt_number(
+    columns = all_of(dcols),
+    rows=2:nrow(tabdata),
+    decimals = 0,
+    scale_by = 1,
+    suffixing = FALSE
+  ) %>%
+  fmt_percent(
+    columns = all_of(pcols),
+    decimals = 1
+  ) %>%
+  fmt_missing(
+    columns=all_of(pcols),
+    missing_text = "--") %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "#f7f7f7")
+    ),
+    locations = cells_body(
+      rows = seq(1, nrow(tabdata), 2)
+      )
+  ) %>%
+  cols_width(
+    stub ~ px(150),
+    # starts_with("wtd") ~ px(100),
+    everything() ~ px(100)
+  ) %>%
+  tab_footnote(
+    footnote = "Returns with negative tax under current law are excluded.",
+    locations = cells_title(groups = "title")
+  )
+
+tab
+
+# configure save settings for wide table
+gtsave(tab, "USImpact_averages_dispinc_table.png", path = here::here("results"), zoom=1.5, vwidth=1500)  # zoom 2 default
+write_csv(tabdata, here::here("results", "USImpact_averages_dispinc_table_data.csv"))
+
+```
+
+
 ## State analysis
 
 ### Table of states ranked by $ billions change in iitax, base to reform
@@ -1078,6 +1175,100 @@ tab
 # configure save settings for wide table
 gtsave(tab, "states_detailed_table_xpinc.png", path = here::here("results"), zoom=2, vwidth=1500)  # zoom 2 default
 write_csv(tabdata, here::here("results", "states_detailed_table_xpinc_data.csv"))
+
+```
+
+
+### Detailed table of states, including % change in disposable income
+```{r include=TRUE}
+# create data with $ billions total, % change
+# count(data3, measure)
+df1 <- data3 %>%
+  filter(stubnum==0, variable=="iitax", measure=="wtdsum", taxstatus=="allfilers", stabbr %in% c("US", state.abb)) %>%
+  mutate(share=change / change[stabbr=="US"])
+df2 <- data3 %>%
+  filter(stubnum==0, variable=="iitax", measure=="avgval", taxstatus=="taxpayer", stabbr %in% c("US", state.abb))
+df3 <- data3 %>%
+  filter(stubnum==0, variable=="dispinc", measure=="avgval",
+         taxstatus=="taxpayer", stabbr %in% c("US", state.abb))
+
+tabdata <- df1 %>%
+  select(stabbr, totchange=change, share) %>%
+  left_join(df2 %>% select(stabbr, avgchange=change, avgpchange=pchange),
+            by="stabbr") %>%
+  left_join(df3 %>% select(stabbr, avgdispincpchange=pchange),
+            by="stabbr") %>%
+  mutate(group=ifelse(stabbr=="US", "US", "state"),
+         stname=get_stname(stabbr)) %>%
+  arrange(desc(group), stname) %>%
+  select(stname, stname, totchange, share, avgchange, avgpchange, avgdispincpchange)
+
+
+tab <- tabdata %>%
+  gt()  %>%  
+  tab_header(
+    title = "Impact of SALT-cap repeal for the United States and for individual states",
+    subtitle = "Compared to current 2021 law"
+  ) %>%
+  cols_label(
+    stname="",
+    totchange = html("Change in $ billions"),
+    share = html("% share of<br>U.S. change"),
+    avgchange = html("Average $ change<br>per taxpayer"),
+    avgpchange = html("Average<br>% change"),
+    avgdispincpchange = html("% change in disposable income")
+    ) %>%
+  fmt_currency(
+    columns = c("totchange"),
+    rows=1,
+    decimals = 1,
+    scale_by = 1e-9,
+    suffixing = FALSE
+  )  %>%
+  fmt_currency(
+    columns = c("avgchange"),
+    rows=1,
+    decimals = 0,
+    scale_by = 1,
+    suffixing = FALSE
+  )   %>%
+  fmt_number(
+    columns = c("totchange"),
+    rows=2:nrow(tabdata),
+    decimals = 1,
+    scale_by = 1e-9
+  )  %>%
+  fmt_number(
+    columns = c("avgchange"),
+    rows=2:nrow(tabdata),
+    decimals = 0,
+    scale_by = 1
+  ) %>%
+  fmt_percent(
+    columns = c("share", "avgpchange", "avgdispincpchange"),
+    decimals = 1
+  ) %>%
+  fmt_missing(
+    columns = c("share", "avgpchange", "avgdispincpchange"),
+    missing_text = "--") %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "#f7f7f7")
+    ),
+    locations = cells_body(
+      rows = seq(1, nrow(tabdata), 2)
+      )
+  ) %>%
+  tab_footnote(
+    footnote = "Returns with negative tax under current law are excluded.",
+    locations = cells_column_labels(columns = c("avgchange", "avgpchange"))
+  )
+
+tab
+
+# configure save settings for wide table
+gtsave(tab, "states_detailed_table_dispinc.png", path = here::here("results"), zoom=2, vwidth=1500)  # zoom 2 default
+write_csv(tabdata, here::here("results", "states_detailed_table_dispinc_data.csv"))
 
 ```
 
