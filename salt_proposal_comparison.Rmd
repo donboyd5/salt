@@ -1,0 +1,243 @@
+---
+title: "SALT-cap comparisons"
+author: "Don Boyd and Matt Jensen"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_notebook: 
+    df_print: paged
+    fig_height: 6
+    fig_width: 8
+    toc: yes
+    number_sections: yes
+editor_options:
+  chunk_output_type: inline
+---
+
+```{r setup, eval=TRUE, include=FALSE, echo=FALSE, message=FALSE, warning=FALSE}
+
+# note that eval=TRUE unless set to FALSE
+
+knitr::opts_chunk$set(eval=TRUE, include=FALSE, echo = FALSE)
+options(width = 150)
+
+```
+
+```{r libraries}
+library(tidyverse)
+options(tibble.print_max = 80, tibble.print_min = 80) # if more than 60 rows, print 60 - enough for states
+library(arrow)
+library(kableExtra)
+library(btools)
+library(gt)
+library(knitr)
+
+library(maps)
+# https://cran.r-project.org/web/packages/usmap/vignettes/mapping.html
+library(usmap)
+library(gridExtra)
+library(RcppRoll)
+library(ggrepel)
+library(ggbreak)
+library(patchwork)
+library(RColorBrewer)
+
+```
+
+```{r locations}
+# SALTDIR <- r"(E:\pufanalysis_outputs\salt_tc3.2.1\)"
+# WEIGHTDIR <- r"(E:\puf_analysis_inputs\weights\)"    
+
+```
+
+
+```{r constants}
+geos <- c(state.abb, "other")
+
+# df with upper bound of open intervals (does not include endpoint on right)
+agi_stubs <- tribble(~agicut, ~agilabel,
+                     -Inf, "Negative",
+                     1, "Under $1",
+                     25e3, "$1 to < $25k",
+                     50e3, "$25k < 50k",
+                     75e3, "$50k < 75k",
+                     100e3, "$75k < $100k",
+                     200e3, "$100k < $200k",
+                     500e3, "$200k < $500k",
+                     1e6, "$500k < $1m",
+                     Inf, "$1m+")
+
+
+```
+
+```{r utility_functions}
+
+get_stname <- function(stabbr){
+  allgeos <- c("US", geos)
+  allnames <- c("United States", state.name, "Other")
+  allnames[match(stabbr, allgeos)]
+}
+```
+
+
+```{r reforms}
+resdir <- "results_tc3.2.1"
+
+runtypes <- c("repeal", "cap72500", "cap80000")
+reform_names <- c("SALT cap repealed", "SALT cap raised to $72,500", "SALT cap raised to $80,000")
+
+runnum <- 3
+reform <- runtypes[runnum]
+reform_name <- reform_names[runnum]
+runresults <- paste0("results_tc3.2.1/", runtypes[runnum])
+
+```
+
+
+
+```{r comp_revloss_shares}
+# reduce the revenue loss
+# make it somewhat less concentrated among the highest income households
+# spread the tax revenue reduction more broadly across the states (very slightly)
+
+tab <- "USImpact_billions_table_data.csv"
+revloss <- bind_rows(read_csv(here::here(resdir, "repeal", tab)) %>%
+                       mutate(type="repeal"),
+                     read_csv(here::here(resdir, reform, tab)) %>%
+                       mutate(type="reform"))
+
+tabdata <- revloss %>%
+  select(stub, wtdsum_change, change_share, type) %>%
+  pivot_wider(names_from = type,
+              values_from = c(wtdsum_change, change_share)) %>%
+  mutate(change_change=wtdsum_change_reform - wtdsum_change_repeal,
+         share_change=change_share_reform - change_share_repeal) %>%
+  select(stub, 
+         wtdsum_change_repeal, wtdsum_change_reform, change_change,
+         change_share_repeal, change_share_reform, share_change)
+tabdata  
+
+dcols <- c("wtdsum_change_repeal", "wtdsum_change_reform", "change_change")
+pcols <- c("change_share_repeal", "change_share_reform") #, "share_change")
+ref <- html("SALT cap<br>raised to<br>$80,000")
+tab <- tabdata %>%
+  select(-share_change) %>%
+  gt() %>%  
+  tab_header(
+    title = "Impact of raising the SALT cap versus full cap repeal",
+    subtitle = paste0("Baseline is 2021 current law")
+  ) %>%
+  tab_spanner(label="Billions of dollars", 
+              columns=c(wtdsum_change_repeal, wtdsum_change_reform, change_change)) %>%
+  tab_spanner(label="Percentage", 
+              columns=c(change_share_repeal, change_share_reform)) %>%
+  cols_label(
+      stub = "",
+      wtdsum_change_repeal = "Full cap repeal",
+      wtdsum_change_reform = ref,
+      change_change = html("$ change: <br>Reform minus<br>full cap repeal"),
+      change_share_repeal="Full cap repeal",
+      change_share_reform=ref
+      # share_change = html("change in % share of national impact")
+    ) %>%
+  fmt_currency(
+    columns = all_of(dcols),
+    rows=1,
+    decimals = 1,
+    scale_by = 1e-9,
+    suffixing = FALSE
+  ) %>%
+  fmt_number(
+    columns = all_of(dcols),
+    rows=2:nrow(tabdata),
+    decimals = 1,
+    scale_by = 1e-9,
+    suffixing = FALSE
+  ) %>%
+  fmt_percent(
+    columns = all_of(pcols),
+    decimals = 1
+  )
+tab
+# gtsave(tab, "USImpactReformVsRepeal_table.png", path = here::here(runresults), zoom=1.5, vwidth=1500)  # zoom 2 default
+# gtsave(tab, "USImpactReformVsRepeal_table.png", path = here::here(runresults), zoom=2, vwidth=1500) 
+gtsave(tab, "USImpactReformVsRepeal_table.png", path = here::here(runresults)) 
+write_csv(tabdata, here::here(runresults, "USImpactReformVsRepeal_table_data.csv"))
+
+
+```
+
+
+```{r comp_states, rows.print=30}
+
+tab <- "states_detailed_table_data.csv"
+revloss_states <- bind_rows(read_csv(here::here(resdir, "repeal", tab)) %>%
+                       mutate(type="repeal"),
+                     read_csv(here::here(resdir, reform, tab)) %>%
+                       mutate(type="reform"))
+
+tab1 <- revloss_states %>%
+  select(stname, totchange, share, type) %>%
+  pivot_wider(names_from = type,
+              values_from = c(totchange, share)) %>%
+  arrange(totchange_reform) %>%
+  mutate(group = case_when(stname=="United States" ~ "United States",
+                           row_number() <= 11 ~ "Top 10 states",
+                           TRUE ~ "Remaining states"))
+
+tab2 <- tab1 %>%
+  filter(stname != "United States") %>%
+  group_by(group) %>%
+  summarise(across(.cols = -stname, sum), .groups="drop") %>%
+  mutate(stname=paste0(group, " sum")) %>%
+  arrange(desc(stname))
+
+tabdata <- bind_rows(tab1 %>% filter(group != "Remaining states"), tab2) 
+tabdata  
+
+dcols <- c("wtdsum_change_repeal", "wtdsum_change_reform", "change_change")
+pcols <- c("change_share_repeal", "change_share_reform") #, "share_change")
+ref <- html("SALT cap<br>raised to<br>$80,000")
+tab <- tabdata %>%
+  select(-group) %>%
+  gt() %>%  
+  tab_header(
+    title = "Impact of raising the SALT cap versus full cap repeal",
+    subtitle = paste0("Baseline is 2021 current law")
+  ) %>%
+  tab_spanner(label="Billions of dollars", 
+              columns=contains("totchange")) %>%
+  tab_spanner(label="Percentage", 
+              columns=contains("share")) %>%
+  cols_label(
+      stname = "",
+      totchange_repeal = "Full cap repeal",
+      totchange_reform = ref,
+      share_repeal="Full cap repeal",
+      share_reform=ref
+    ) %>%
+  fmt_currency(
+    columns = contains("totchange"),
+    rows=1,
+    decimals = 1,
+    scale_by = 1e-9,
+    suffixing = FALSE
+  ) %>%
+  fmt_number(
+    columns = contains("totchange"),
+    rows=2:nrow(tabdata),
+    decimals = 1,
+    scale_by = 1e-9,
+    suffixing = FALSE
+  ) %>%
+  fmt_percent(
+    columns = contains("share"),
+    decimals = 1
+  )
+tab
+# gtsave(tab, "USImpactReformVsRepeal_table.png", path = here::here(runresults), zoom=1.5, vwidth=1500)  # zoom 2 default
+# gtsave(tab, "USImpactReformVsRepeal_table.png", path = here::here(runresults), zoom=2, vwidth=1500) 
+gtsave(tab, "StatesImpactReformVsRepeal_table.png", path = here::here(runresults)) 
+write_csv(tabdata, here::here(runresults, "StatesImpactReformVsRepeal_table_data.csv"))
+
+```
+

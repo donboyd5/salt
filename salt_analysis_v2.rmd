@@ -84,16 +84,11 @@ library(RColorBrewer)
 
 ```{r locations}
 
-os <- "win_new"  # win or linux
+os <- "win"  # win or linux
 
 if(os=="win"){
-  SCRATCHDIR <- r"(E:\linux\scratch\)"
-  TCDIR <- r"(E:\data\puf_analysis\)"
-  WEIGHTDIR <- r"(E:\linux\pufanalysis_output\weights\)"
-} else if(os=="win_new"){
-  SCRATCHDIR <- r"(C:\Users\donbo\Dropbox\puf_analysis_materials_from_linux\salt_v2\)"
-  TCDIR <- r"(C:\Users\donbo\Dropbox\puf_analysis_materials_from_linux\salt_v2\)"
-  WEIGHTDIR <- r"(C:\Users\donbo\Dropbox\puf_analysis_materials_from_linux\weights\)"  
+  SALTDIR <- r"(E:\pufanalysis_outputs\salt_tc3.2.1\)"
+  WEIGHTDIR <- r"(E:\puf_analysis_inputs\weights\)"    
 } else if(os=="linux"){
   SCRATCHDIR <- '/media/don/scratch/'
   DATADIR <- '/media/don/pufanalysis_output/data/'
@@ -109,11 +104,11 @@ runtypes <- c("repeal", "cap72500", "cap80000")
 reform_files <- c("repeal_2021.parquet", "cap72500_2021.parquet", "cap80000_2021.parquet")
 reform_names <- c("SALT cap repealed", "SALT cap raised to $72,500", "SALT cap raised to $80,000")
 
-runnum <- 3
+runnum <- 1
 runtype <- runtypes[runnum]
 reform_file <- reform_files[runnum]
 reform_name <- reform_names[runnum]
-runresults <- paste0("resultsv2/", runtypes[runnum])
+runresults <- paste0("results_tc3.2.1/", runtypes[runnum])
 
 
 ```
@@ -179,7 +174,7 @@ check <- stshares %>%
   summarise(sum=sum(value), .groups="drop")
 check %>% filter(abs(sum - 1) > 1e-6)  
 
-usweights <- read_csv(paste0(TCDIR, 'weights2021.csv'))
+usweights <- read_csv(paste0(SALTDIR, 'weights2021.csv'))
 glimpse(usweights)
 usweights %>%
   group_by(filer2017) %>%
@@ -219,7 +214,7 @@ vars <- c("RECID", "c00100", "e00200",  "standard", "c04470", "c18300",
           "iitax", "combined",
           "expanded_income", "benefit_value_total")
 
-basedf <- read_parquet(paste0(TCDIR, "base_2021.parquet"),  # OLD: base2021.parquet
+basedf <- read_parquet(paste0(SALTDIR, "base_2021.parquet"),  # OLD: base2021.parquet
                        col_select = all_of(vars)) %>%
   mutate(agibase=c00100, 
          taxstatus=ifelse(iitax >= 0, "taxpayer", "negtax"),
@@ -227,7 +222,7 @@ basedf <- read_parquet(paste0(TCDIR, "base_2021.parquet"),  # OLD: base2021.parq
 # postaxind indicates that a filer had positive tax in the base analysis, as we will compute
 # some averages for this subset of filers
 
-reformdf <- read_parquet(paste0(TCDIR, reform_file),  # OLD: reform2021.parquet
+reformdf <- read_parquet(paste0(SALTDIR, reform_file),  # OLD: reform2021.parquet
                        col_select = all_of(vars)) %>%
   left_join(basedf %>% select(RECID, agibase, numret, taxstatus), by="RECID") %>% mutate(type="reform")
 
@@ -568,8 +563,8 @@ pcols <- c("wtdsum_pchange", "avgval_pchange")
 tab <- tabdata %>%
   gt()  %>%  
   tab_header(
-    title = "Aggregate tax liabilities by income group ($ billions)",
-    subtitle = paste0(reform_name, " compared to current 2021 law")
+    title = paste0(reform_name, " compared to current 2021 law"),
+    subtitle = "Aggregate tax liabilities by income group ($ billions)"
   ) %>%
   cols_label(
       stub = "",
@@ -672,8 +667,8 @@ tab <- tabdata %>%
   select(-stubnum) %>%
   gt()  %>%  
   tab_header(
-    title = html("Aggregate tax liabilities by income group ($ billions)"),
-    subtitle = paste0(reform_name, " compared to current 2021 law")
+    title = paste0(reform_name, " compared to current 2021 law"),
+    subtitle = html("Aggregate tax liabilities by income group ($ billions)")
   ) %>%
   cols_label(
       stub = "",
@@ -743,8 +738,8 @@ tab <- tabdata %>%
   select(-stubnum) %>%
   gt()  %>%  
   tab_header(
-    title = html("Average tax change per taxpayer"),
-    subtitle = paste0(reform_name, " compared to current 2021 law")
+    title = paste0(reform_name, " compared to current 2021 law"),
+    subtitle = html("Average tax change per taxpayer")
   ) %>%
   cols_label(
       stub = "",
@@ -816,8 +811,8 @@ tab <- tabdata %>%
   select(-stubnum) %>%
   gt()  %>%  
   tab_header(
-    title = html("Average tax change per taxpayer"),
-    subtitle = paste0(reform_name, " compared to current 2021 law")
+    title = paste0(reform_name, " compared to current 2021 law"),
+    subtitle = html("Average tax change per taxpayer")
   ) %>%
   cols_label(
       stub = "",
@@ -890,8 +885,8 @@ tab <- tabdata %>%
   select(-stubnum) %>%
   gt()  %>%  
   tab_header(
-    title = html("Average tax change per taxpayer"),
-    subtitle = paste0(reform_name, " compared to current 2021 law")
+    title = paste0(reform_name, " compared to current 2021 law"),
+    subtitle = html("Average tax change per taxpayer")
   ) %>%
   cols_label(
       stub = "",
@@ -967,8 +962,8 @@ tabdata <- data3 %>%
 tab <- tabdata %>%
   gt()  %>%  
   tab_header(
-    title = "States ranked by impact of SALT-cap reform, $ billions",
-    subtitle = paste0(reform_name, ": Compared to current 2021 law")
+    title = paste0(reform_name, " compared to current 2021 law"),
+    subtitle = "States ranked by impact of SALT-cap reform, $ billions"
   ) %>%
   cols_label(
       base = "2021 current law",
@@ -1039,8 +1034,8 @@ tabdata <- df1 %>%
 tab <- tabdata %>%
   gt()  %>%  
   tab_header(
-    title = "Impact of SALT-cap reform for the United States and for individual states",
-    subtitle = paste0(reform_name, ": Compared to current 2021 law")
+    title = paste0(reform_name, " compared to current 2021 law"),
+    subtitle = "Impact of SALT-cap reform for the United States and for individual states"
   ) %>%
   cols_label(
     stname="",
@@ -1132,8 +1127,8 @@ tabdata <- df1 %>%
 tab <- tabdata %>%
   gt()  %>%  
   tab_header(
-    title = "Impact of SALT-cap reform for the United States and for individual states",
-    subtitle = paste0(reform_name, ": Compared to current 2021 law")
+    title = paste0(reform_name, " compared to current 2021 law"),
+    subtitle = "Impact of SALT-cap reform for the United States and for individual states"
   ) %>%
   cols_label(
     stname="",
@@ -1226,8 +1221,8 @@ tabdata <- df1 %>%
 tab <- tabdata %>%
   gt()  %>%  
   tab_header(
-    title = "Impact of SALT-cap reform for the United States and for individual states",
-    subtitle = paste0(reform_name, ": Compared to current 2021 law")
+    title = paste0(reform_name, " compared to current 2021 law"),
+    subtitle = "Impact of SALT-cap reform for the United States and for individual states"
   ) %>%
   cols_label(
     stname="",
@@ -1294,7 +1289,7 @@ write_csv(tabdata, here::here(runresults, "states_detailed_table_dispinc_data.cs
 
 ### Map of average change in iitax, all filers with positive baseline tax (not just itemizers, not just those with tax change)
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # map of $ change of all returns
 theme_map <- function(base_size=9, base_family="") {
   # see:
@@ -1342,7 +1337,7 @@ get_stateplot <- function(data, fillvar){
 ```
 
 
-```{r map_avg, include=TRUE}
+```{r map_avg, message=FALSE, warning=FALSE, include=TRUE}
 mapbase <- data3 %>%
   filter(stabbr %in% state.abb, stubnum==0, variable=="iitax", measure=="avgval", taxstatus=="taxpayer") %>%
   select(stabbr, variable, measure, base, reform, change)
@@ -1388,8 +1383,8 @@ p <- ggplot(data = mdata, aes(x = x, y = y, group = group)) +
   theme_map() +
   theme(legend.position = "right") +
   theme(legend.title = element_blank()) + 
-  ggtitle("Average tax reduction per taxpayer by state",
-          subtitle=paste0(reform_name, " compared to current 2021 law")) +
+  ggtitle(paste0(reform_name, " compared to current 2021 law"),
+          subtitle="Average tax reduction per taxpayer by state") +
   labs(caption="Returns with negative tax under current law are excluded.") + 
   theme(plot.caption = element_text(hjust = 0, face="italic"))
 
@@ -1439,8 +1434,8 @@ p <- ggplot(data = mdata, aes(x = x, y = y, group = group)) +
   theme_map() +
   theme(legend.position = "right") +
   guides(fill=guide_legend(title="$ millions")) +
-  ggtitle("Aggregate tax reductions by state ($ millions)",
-          subtitle=paste0(reform_name, " compared to current 2021 law"))
+  ggtitle(paste0(reform_name, " compared to current 2021 law"),
+          subtitle="Aggregate tax reductions by state ($ millions)")
 p
 ggsave(plot=p, filename=here::here(runresults, "total_iitax_change_map.png"), width=8, height=6.5, units="in")
 write_csv(mapdata, here::here(runresults, "total_iitax_change_map_data.csv"))
@@ -1470,8 +1465,8 @@ p <- df %>%
   geom_vline(xintercept=mdn, linetype="solid", colour="darkgrey", size=1) +
   theme_minimal() +
   theme(axis.text.y = element_text(hjust = 0)) +
-  ggtitle("Aggregate tax reductions by state ($ billions)",
-          subtitle=paste0(reform_name, " compared to current 2021 law")) +
+  ggtitle(paste0(reform_name, " compared to current 2021 law"),
+          subtitle="Aggregate tax reductions by state ($ billions)") +
   annotate(geom="text", x=mdn + .1, y=5, label="median", hjust=0) 
 p
 ggsave(plot=p, filename=here::here(runresults, "iitax_change_hbars.png"), width=8, height=6.5, units="in")
@@ -1500,8 +1495,8 @@ p <- df %>%
   geom_vline(xintercept=mdn, linetype="solid", colour="darkgrey", size=1) +
   theme_minimal() +
   theme(axis.text.y = element_text(hjust = 0)) +
-  ggtitle(paste0(reform_name, ", billions of dollars"),
-          subtitle="Compared to current 2021 law") +
+  ggtitle(paste0(reform_name, " compared to current 2021 law"),
+          subtitle="Billions of dollars") +
   annotate(geom="text", x=mdn + .1, y=5, label="median", hjust=0) 
 p
 ggsave(plot=p, filename=here::here(runresults, "iitax_change_hbars_numbers.png"), width=8, height=6.5, units="in")
@@ -1533,8 +1528,8 @@ p <- df %>%
   geom_vline(xintercept=mdn, linetype="solid", colour="darkgrey", size=1) +
   theme_minimal() +
   theme(axis.text.y = element_text(hjust = 0)) +
-  ggtitle("Average tax reduction per taxpayer by state",
-          subtitle=paste0(reform_name, " compared to current 2021 law")) +
+  ggtitle(paste0(reform_name, " compared to current 2021 law"),
+          subtitle="Average tax reduction per taxpayer by state") +
   annotate(geom="text", x=mdn + 10, y=5, label="median", hjust=0) +
   labs(caption="\nReturns with negative tax under current law are excluded.") + 
   theme(plot.caption = element_text(hjust = 0, face="italic"))
@@ -1643,7 +1638,7 @@ statetab1 <- function(stabbr){
       suffixing = FALSE
     ) %>%
     fmt_percent(
-      columns = pcols,
+      columns = all_of(pcols),
       decimals = 1
     ) %>%
     fmt_missing(
